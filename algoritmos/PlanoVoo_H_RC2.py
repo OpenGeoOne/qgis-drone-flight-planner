@@ -19,9 +19,8 @@ __copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj
 from ..images.Imgs import *
