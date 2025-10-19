@@ -29,7 +29,6 @@ from qgis.core import (
 
 from qgis.core import *
 from qgis.PyQt.QtGui import QColor, QFont
-from PyQt5.QtCore import QVariant
 import qgis.utils
 import processing
 import csv
