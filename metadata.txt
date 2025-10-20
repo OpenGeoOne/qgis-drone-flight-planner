@@ -25,7 +25,7 @@ category=Drone
 icon=images/GeoFlightPlanner.png
 
 # changelog=
-    2.1.2 - compatibility with QT5 and QT6
+    2.1.2 - compatibility with Qt5 and Qt6
     2.1.1 - bug fix in menu
     2.1.0 - new tool for simplifing waypoints / Save Custom drone parameters in GSD Calculator
     2.0.0 - added GSD Calculator / Check if 2 Layers are saved and out of editing / Gimbal Angle
