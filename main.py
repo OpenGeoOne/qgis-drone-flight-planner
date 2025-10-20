@@ -111,7 +111,10 @@ class GeoFlightPlanner:
         try:
             from .calculator.calculators import Calculator_Dialog
             dlg = Calculator_Dialog(self.iface)
-            dlg.exec_()
+            try:
+                dlg.exec()     # PyQt6
+            except AttributeError:
+                dlg.exec_()    # PyQt5
         except Exception as e:
             QMessageBox.critical(None, "Error", f"Error opening calculator:\n{str(e)}")
 
