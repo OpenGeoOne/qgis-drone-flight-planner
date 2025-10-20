@@ -27,6 +27,17 @@ from qgis.gui import QgsCollapsibleGroupBox
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtCore import QUrl, Qt
 
+# Compat PyQt5/PyQt6 para ItemFlag
+def _qt_item_flag(name: str):
+    bucket = getattr(Qt, "ItemFlag", None)  # PyQt6 tem Qt.ItemFlag
+    if bucket is not None and hasattr(bucket, name):
+        return getattr(bucket, name)
+    # fallback PyQt5: flags ficam direto em Qt
+    return getattr(Qt, name)
+
+ITEM_IS_EDITABLE = _qt_item_flag("ItemIsEditable")
+
+
 # Calculation functions
 def calculate_gsd_by_sensor(altitude_m, sensor_width_mm, sensor_height_mm, image_width_px, image_height_px, focal_mm):
     if altitude_m <= 0 or focal_mm <= 0:
@@ -218,10 +229,82 @@ class Calculator_Dialog(QDialog):
         selected = self.droneCombo.currentText()
         return self.drone_data.get(selected)
 
-    def _update_sensor_info(self): # Info Data Drone selected for Table Data 
+    def _update_sensor_info(self):  # Info Data Drone selected for Table Data
         selected = self.droneCombo.currentText()
         self.table.setRowCount(0)
+
+        specs = self._get_specs()
+
+        # Mostrar botão de salvar apenas quando for "Custom"
         self.saveButton.setVisible(selected == "Custom")
+
+        if not specs:
+            # Sem specs: mostra placeholders educativos (opcional)
+            placeholders = {
+                "sensor_width": 13.2,
+                "sensor_height": 8.8,
+                "focal_length": 8.8,
+                "image_width": 4056,
+                "image_height": 3040,
+                "min_angle_cam": 0,
+                "max_angle_cam": 90,
+            }
+            units = {
+                "sensor_width": "mm",
+                "sensor_height": "mm",
+                "focal_length": "mm",
+                "image_width": "px",
+                "image_height": "px",
+                "min_angle_cam": "deg",
+                "max_angle_cam": "deg",
+            }
+            for row, (key, value) in enumerate(placeholders.items()):
+                self.table.insertRow(row)
+
+                # Coluna Parameter (sempre não editável)
+                key_item = QTableWidgetItem(str(key))
+                key_item.setFlags(key_item.flags() & ~ITEM_IS_EDITABLE)
+                self.table.setItem(row, 0, key_item)
+
+                # Coluna Value (não editável — só para ilustrar)
+                unit = units.get(key, "")
+                display_value = f"{value} {unit}" if unit else str(value)
+                value_item = QTableWidgetItem(display_value)
+                value_item.setFlags(value_item.flags() & ~ITEM_IS_EDITABLE)
+                self.table.setItem(row, 1, value_item)
+            return
+
+        # Temos specs reais: preencher a tabela com base nelas
+        units = {
+            "sensor_width": "mm",
+            "sensor_height": "mm",
+            "focal_length": "mm",
+            "image_width": "px",
+            "image_height": "px",
+            "min_angle_cam": "deg",
+            "max_angle_cam": "deg",
+        }
+
+        for row, (key, value) in enumerate(specs.items()):
+            self.table.insertRow(row)
+
+            # Coluna Parameter (sempre não editável)
+            key_item = QTableWidgetItem(str(key))
+            key_item.setFlags(key_item.flags() & ~ITEM_IS_EDITABLE)  # <-- usar helper
+            self.table.setItem(row, 0, key_item)
+
+            # Coluna Value (editável apenas se for Custom)
+            unit = units.get(key, "")
+            display_value = f"{value} {unit}" if unit else str(value)
+            value_item = QTableWidgetItem(display_value)
+            if selected != "Custom":
+                value_item.setFlags(value_item.flags() & ~ITEM_IS_EDITABLE)  # <-- usar helper
+            self.table.setItem(row, 1, value_item)
+
+        # selected = self.droneCombo.currentText()
+        # self.table.setRowCount(0)
+        # self.saveButton.setVisible(selected == "Custom")
+
 
         specs = self._get_specs()
         if specs:
@@ -239,7 +322,7 @@ class Calculator_Dialog(QDialog):
 
                 # Coluna Parameter (sempre não editável)
                 key_item = QTableWidgetItem(str(key))
-                key_item.setFlags(key_item.flags() & ~Qt.ItemIsEditable)
+                key_item.setFlags(key_item.flags() & ~ITEM_IS_EDITABLE)
                 self.table.setItem(row, 0, key_item)
 
                 # Coluna Value (editável apenas se for Custom)
@@ -247,7 +330,7 @@ class Calculator_Dialog(QDialog):
                 display_value = f"{value} {unit}" if unit else str(value)
                 value_item = QTableWidgetItem(display_value)
                 if selected != "Custom":
-                    value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
+                    value_item.setFlags(value_item.flags() & ~ITEM_IS_EDITABLE)
                 self.table.setItem(row, 1, value_item)
 
     def _save_custom_drone(self): # Save Custom Drone in JSON file
