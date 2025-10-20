@@ -17,6 +17,7 @@ hasProcessingProvider=yes
 experimental=False
 deprecated=False
 server=False
+supportsQt6=True
 
 tags=drones, dji, litchi, fly, path, csv, kmz, kml, brazil, plano de voo, GeoOne, gsd
 homepage=https://github.com/OpenGeoOne/qgis-drone-flight-planner/wiki
