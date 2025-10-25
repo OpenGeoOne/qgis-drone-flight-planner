@@ -27,7 +27,6 @@ from ..images.Imgs import *
 import processing
 import os
 import math
-import csv
 
 class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):

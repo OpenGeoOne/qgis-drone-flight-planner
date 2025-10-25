@@ -13,9 +13,7 @@ from qgis.core import (
     QgsProject,
     QgsVectorLayer,
     QgsFields,
-    QgsWkbTypes,
-    QgsProcessing,
-    QgsCoordinateReferenceSystem
+    QgsProcessing
 )
 from qgis import processing
 from qgis.PyQt.QtCore import QVariant, QCoreApplication

@@ -23,8 +23,7 @@ from qgis.core import (
     QgsCoordinateTransform,
     QgsVectorLayer,
     QgsProject,
-    QgsFeature,
-    QgsGeometry
+    QgsFeature
 )
 
 from qgis.core import *

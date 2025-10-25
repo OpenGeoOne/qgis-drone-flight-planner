@@ -28,7 +28,6 @@ import processing
 import os
 import math
 import numpy as np
-import csv
 
 class PlanoVoo_V_F(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
