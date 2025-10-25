@@ -12,9 +12,9 @@
 *******************************************************************************************/
 """
 
-__author__ = 'Prof Cazaroli and Leandro França and Prof Ilton'
+__author__ = 'Prof Cazaroli and Leandro França and Prof Ilton Freitas'
 __date__ = '2025-07-04'
-__copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França and Prof Ilton'
+__copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França and Prof Ilton Freitas'
 __revision__ = '$Format:%H$'
 
 import os
