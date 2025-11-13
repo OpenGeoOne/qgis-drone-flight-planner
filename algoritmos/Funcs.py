@@ -29,7 +29,7 @@ from qgis.core import (
 from qgis.core import *
 from qgis.PyQt.QtGui import QColor, QFont
 import qgis.utils
-import processing
+import processing, math
 import csv
 
 def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None, deltaFront_op=None):
@@ -561,3 +561,6 @@ def removeLayersReproj(txtFinal):
       QgsProject.instance().removeMapLayer(layer)
 
    return
+
+def arredondar_para_cima(x, pot):
+    return math.ceil(x * 10**pot) / 10**pot
