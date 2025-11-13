@@ -22,7 +22,7 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj
+from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima
 from ..images.Imgs import *
 import processing
 import os
@@ -662,7 +662,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, 360, altVoo, gimbalAng, terrain)
+            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront,2), 360, altVoo, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
