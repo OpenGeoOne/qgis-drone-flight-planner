@@ -92,12 +92,21 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
+            
+        
+        # Verificar as Geometrias
+        if circulo_base.featureCount() != 1:
+            raise QgsProcessingException("❌ Flight base Circle must contain only one circle.")
+
+        if ponto_inicial.featureCount() != 1:
+            raise QgsProcessingException("❌ Start Point must contain only one point.")
+        
 
         # Verificar o SRC das Camadas
         crs = circulo_base.crs()
         crsP = ponto_inicial.crs() # não usamos o crsP, apenas para verificar a camada
         if crs != crsP:
-            raise ValueError("❌ Both layers must be from the same CRS.")
+            raise QgsProcessingException("❌ Both layers must be from the same CRS.")
 
         if "UTM" in crs.description().upper():
             feedback.pushInfo(f"The layer 'Flight Base Circle' is already in CRS UTM.")
@@ -106,7 +115,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
             nome = circulo_base.name() + "_reproject"
             circulo_base = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
         if "UTM" in crsP.description().upper():
             feedback.pushInfo(f"The layer 'Start Point' is already in CRS UTM.")
@@ -120,14 +129,8 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
             nome = ponto_inicial.name() + "_move"
             ponto_inicial_move = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
-        # Verificar as Geometrias
-        if circulo_base.featureCount() != 1:
-            raise ValueError("❌ Flight base Circle must contain only one circle.")
-
-        if ponto_inicial.featureCount() != 1:
-            raise ValueError("❌ Start Point must contain only on point.")
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VC",
