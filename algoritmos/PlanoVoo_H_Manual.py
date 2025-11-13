@@ -95,12 +95,20 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
+            
+        
+        # Verificar as Geometrias
+        if area_layer.featureCount() != 1:
+            raise QgsProcessingException("❌ The Area must contain only one polygon.")
 
+        if primeira_linha.featureCount() != 1:
+            raise QgsProcessingException("❌ The First Line must contain only one line.")
+        
         # Verificar o SRC das Camadas
         crs = area_layer.crs()
         crsL = primeira_linha.crs() # não usamos o crsL, apenas para verificar a camada
         if crs != crsL:
-            raise ValueError("❌ Both layers must be from the same CRS.")
+            raise QgsProcessingException("❌ Both layers must be from the same CRS.")
 
         if "UTM" in crs.description().upper():
             feedback.pushInfo(f"The layer 'Area' is already in CRS UTM.")
@@ -109,7 +117,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
             nome = area_layer.name() + "_reproject"
             area_layer = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
         if "UTM" in crsL.description().upper():
             feedback.pushInfo(f"The layer 'First line - direction flight' is already in CRS UTM.")
@@ -118,9 +126,8 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
             nome = primeira_linha.name() + "_reproject"
             primeira_linha = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-
-        # Verificar as Geometrias
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+        
         poligono_features = next(area_layer.getFeatures()) # dados do Terreno
         poligono_geom = poligono_features.geometry()
         if poligono_geom.isMultipart():
@@ -130,12 +137,6 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         linha_geom = linha_features.geometry()
         if linha_geom.isMultipart():
             linha_geom = linha_geom.asGeometryCollection()[0]
-
-        if area_layer.featureCount() != 1:
-            raise ValueError("❌ The Area must contain only one polygon.")
-
-        if primeira_linha.featureCount() != 1:
-            raise ValueError("❌ The First Line must contain only one line.")
 
         # Grava Parâmetros
         saveParametros("H_Manual",
