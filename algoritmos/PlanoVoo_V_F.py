@@ -94,12 +94,21 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
+            
+        
+        # Verificar as Geometrias
+        if linha_base.featureCount() != 1:
+            raise QgsProcessingException("❌ Flight Base Line must contain only one line.")
+
+        if ponto_base.featureCount() != 1:
+            raise QgsProcessingException("❌ Position of the Facade must contain only one point.")
+        
 
         # Verificar o SRC das Camadas
         crs = linha_base.crs()
         crsP = ponto_base.crs() # não usamos o crsP, apenas para verificar a camada
         if crs != crsP:
-            raise ValueError("❌ Both layers must be from the same CRS.")
+            raise QgsProcessingException("❌ Both layers must be from the same CRS.")
 
         if "UTM" in crs.description().upper():
             feedback.pushInfo(f"The layer 'Flight Base Line' is already in CRS UTM.")
@@ -108,7 +117,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
             nome = linha_base.name() + "_reproject"
             linha_base = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
         if "UTM" in crsP.description().upper():
             feedback.pushInfo(f"The layer 'Position of the Facade' is already in CRS UTM.")
@@ -117,14 +126,8 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
             nome = ponto_base.name() + "_reproject"
             ponto_base = QgsProject.instance().mapLayersByName(nome)[0]
         else:
-            raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
+            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
-        # Verificar as Geometrias
-        if linha_base.featureCount() != 1:
-            raise ValueError("❌ Flight Base Line must contain only one line.")
-
-        if ponto_base.featureCount() != 1:
-            raise ValueError("❌ Position of the Facade must contain only one point.")
 
         linha = next(linha_base.getFeatures())
         linha_base_geom = linha.geometry()
@@ -140,7 +143,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         dist_ponto_base = calculaDistancia_Linha_Ponto(linha_base_geom, ponto_base_geom)
 
         if dist_ponto_base <= 10:
-            raise ValueError(f"❌ Horizontal distance ({round(dist_ponto_base, 2)}) is 10 meters or less.")
+            raise QgsProcessingException(f"❌ Horizontal distance ({round(dist_ponto_base, 2)}) is 10 meters or less.")
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VF",
