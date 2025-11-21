@@ -72,7 +72,7 @@ class ExtractSelectedFeaturesToCSV(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_CSV_FILE,
-                self.tr('ArquivoX CSV de entrada'),
+                self.tr('Arquivo CSV de entrada'),
                 behavior=QgsProcessingParameterFile.File,
                 extension='csv',
                 defaultValue=None

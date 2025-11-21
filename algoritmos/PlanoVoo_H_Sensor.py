@@ -683,7 +683,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_Sensor'
 
     def displayName(self):
-        return self.tr('Following terrain - Sensor')
+        return self.tr('1.Following terrain - Sensor')
 
     def group(self):
         return 'Horizontal Flight'

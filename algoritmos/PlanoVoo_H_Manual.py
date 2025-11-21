@@ -675,7 +675,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_Manual'
 
     def displayName(self):
-        return self.tr('Following terrain - Manual')
+        return self.tr('2.Following terrain - Manual')
 
     def group(self):
         return 'Horizontal Flight'

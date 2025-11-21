@@ -59,14 +59,15 @@ class GeoFlightPlanner:
 
         # Add Horizontal submenu actions
         self._add_action("Sensor", lambda: self._run_algorithm("Flight_Plan_H_Sensor"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
-        self._add_action("RC2 Controller", lambda: self._run_algorithm("Flight_Plan_H_RC2"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
         self._add_action("Manual", lambda: self._run_algorithm("Flight_Plan_H_Manual"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
+        self._add_action("RC2 Controller", lambda: self._run_algorithm("Flight_Plan_H_RC2"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
+        self._add_action("Line", lambda: self._run_algorithm("Flight_Plan_H_Line"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
 
         # Add Vertical submenu actions
-        self._add_action("Circular", lambda: self._run_algorithm("Flight_Plan_V_C"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
         self._add_action("Facade", lambda: self._run_algorithm("Flight_Plan_V_F"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
+        self._add_action("Circular", lambda: self._run_algorithm("Flight_Plan_V_C"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
 
-         # Add Simplified submenu actions
+        # Add Simplified submenu actions
         self._add_action("Simplify Waypoints", lambda: self._run_algorithm('SimplifyWaypoints'.lower()), csv_menu, os.path.join(icon_dir, "CSV.png"))
 
         # Add submenus to main menu

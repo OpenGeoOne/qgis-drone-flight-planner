@@ -23,8 +23,9 @@ from qgis.PyQt.QtGui import QIcon
 
 # Importa os algoritmos
 from .algoritmos.PlanoVoo_H_Sensor import PlanoVoo_H_Sensor
-from .algoritmos.PlanoVoo_H_RC2 import PlanoVoo_H_RC2
 from .algoritmos.PlanoVoo_H_Manual import PlanoVoo_H_Manual
+from .algoritmos.PlanoVoo_H_RC2 import PlanoVoo_H_RC2
+from .algoritmos.PlanoVoo_H_Line import PlanoVoo_H_Line
 from .algoritmos.PlanoVoo_V_F import PlanoVoo_V_F
 from .algoritmos.PlanoVoo_V_C import PlanoVoo_V_C
 from .algoritmos.CSV_Simplify import CSV_Simplify
@@ -38,8 +39,9 @@ class PlanoVooProvider(QgsProcessingProvider):
 
     def loadAlgorithms(self):
         self.addAlgorithm(PlanoVoo_H_Sensor())
-        self.addAlgorithm(PlanoVoo_H_RC2())
         self.addAlgorithm(PlanoVoo_H_Manual())
+        self.addAlgorithm(PlanoVoo_H_RC2())
+        self.addAlgorithm(PlanoVoo_H_Line())
         self.addAlgorithm(PlanoVoo_V_C())
         self.addAlgorithm(PlanoVoo_V_F())
         self.addAlgorithm(CSV_Simplify())

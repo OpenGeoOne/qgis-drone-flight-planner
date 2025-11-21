@@ -782,7 +782,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         return 'SimplifyWaypoints'.lower()
 
     def displayName(self):
-        return self.tr('Simplify Waypoints')
+        return self.tr('1.Simplify Waypoints')
 
     def group(self):
         return 'CSV Tools'
