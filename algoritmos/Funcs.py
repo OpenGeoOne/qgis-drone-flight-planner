@@ -440,6 +440,18 @@ def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None,
         s.setValue(prefixo + "rasterRC2", raster)
         s.setValue(prefixo + "csvRC2", csv)
 
+    elif tipoVoo == "H_Line":
+        s.setValue(prefixo + "hVooL", h)
+        s.setValue(prefixo + "abGroundL", abGround)
+        s.setValue(prefixo + "dlL", dl)
+        s.setValue(prefixo + "dfopL", dfop)
+        s.setValue(prefixo + "dfL", df)
+        s.setValue(prefixo + "velocL", v)
+        s.setValue(prefixo + "tStayL", t)
+        s.setValue(prefixo + "gimbalL", gimbal)
+        s.setValue(prefixo + "rasterL", raster)
+        s.setValue(prefixo + "csvL", csv)
+
     elif tipoVoo == "VF":
         s.setValue(prefixo + "hObjVF", h)
         s.setValue(prefixo + "altMinVF", altMin)
@@ -511,6 +523,20 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "gimbalRC2", -90),
             s.value(prefixo + "rasterRC2", ""),
             s.value(prefixo + "csvRC2", "")
+        )
+    
+    elif tipoVoo == "H_Line":
+        return (
+            s.value(prefixo + "hVooL", 100),
+            s.value(prefixo + "abGroundL", True),
+            s.value(prefixo + "dlL", 10),
+            s.value(prefixo + "dfopL", 0),
+            s.value(prefixo + "dfL", 10),
+            s.value(prefixo + "velocL", 8),
+            s.value(prefixo + "tStayL", 0),
+            s.value(prefixo + "gimbalL", -90),
+            s.value(prefixo + "rasterL", ""),
+            s.value(prefixo + "csvL", "")
         )
 
     elif tipoVoo == "VF":
