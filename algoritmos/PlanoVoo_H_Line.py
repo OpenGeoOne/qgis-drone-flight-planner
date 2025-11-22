@@ -34,10 +34,12 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooL))
-        self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=abGroundL))
+        self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)',defaultValue=abGroundL))
         
-        self.addParameter(QgsProcessingParameterBoolean('incluir_eixo','Incluir fotos na linha eixo', defaultValue=True))
+        self.addParameter(QgsProcessingParameterBoolean('incluir_eixo','Include photos on the center line',defaultValue=True))
 
+        self.addParameter(QgsProcessingParameterBoolean('dois_buffers','Use two buffers (left and right)',defaultValue=False))
+        
         self.addParameter(QgsProcessingParameterNumber('bf','Lateral Buffer (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dlL))
 
@@ -69,6 +71,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         H = parameters['altura']
         terrain = parameters['aboveGround']
         incluir_eixo = parameters['incluir_eixo']
+        dois_buffers = parameters['dois_buffers'] # se for False terá um Buffer só
         deltaLat = parameters['bf']          # Distância Buffer de voo paralelas - sem cálculo
         deltaFrontOpc = parameters['dfOpc']  # Em metros ou segundos
         deltaFront = parameters['df']        # Espaçamento Frontal entre as fotografias- sem cálculo
@@ -138,98 +141,81 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         def to_linestring(g: QgsGeometry) -> QgsGeometry:
             if g.isMultipart():
                 ml = g.asMultiPolyline()
-                if not ml:
-                    # tentar converter multipart para single
-                    g2 = g.convertToSingleType()
-                    return g2 if g2.isGeosValid() else g
-                # usar a parte mais longa
-                longest = max(ml, key=lambda pts: QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pts]).length())
-                return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in longest])
-            # tentar como polyline simples
+                if ml:
+                    longest = max(ml, key=lambda pts: QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pts]).length())
+                    return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in longest])
             pl = g.asPolyline()
             if pl:
                 return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pl])
-            # fallback: tentar converter
-            g2 = g.convertToSingleType()
-            
-            return g2 if not g2.isEmpty() else g
+            return g.convertToSingleType()
 
         linha_geom = to_linestring(geom)
-        if linha_geom.isEmpty():
-            raise QgsProcessingException("❌ Axis could not be converted to LineString.")
 
-        # ===== Espaçamento lateral e frontal =====
+        # ===== Espaçamento frontal =====
         if deltaFrontOpc == 0:
-            feedback.pushInfo(f"✅ Lateral spacing: {round(deltaLat, 2)} m, Front spacing: {round(deltaFront, 2)} m")
             spacing_m = deltaFront
         else:
-            feedback.pushInfo(f"✅ Lateral spacing: {round(deltaLat, 2)} m, Front time: {round(deltaFront, 2)} s")
-            spacing_m = velocidade * deltaFront  # distância = velocidade × tempo
-
+            spacing_m = velocidade * deltaFront
         if spacing_m <= 0:
             raise QgsProcessingException("❌ Computed front spacing must be > 0.")
 
         # ===== Offsets laterais (direita/esquerda) =====
-        # Nota: sinal do offsetCurve depende do sistema de coordenadas; usamos ±deltaLat e validamos
-        linha_direita = linha_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-        linha_esquerda = linha_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+        linha_direita1 = linha_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+        linha_esquerda1 = linha_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
 
         def valid_or_fallback(curve: QgsGeometry) -> QgsGeometry:
             if curve and not curve.isEmpty() and curve.isGeosValid():
                 return to_linestring(curve)
-            # se falhar, usa a própria linha como fallback
             return linha_geom
 
-        linha_eixo = to_linestring(linha_geom)
-        linha_direita = valid_or_fallback(linha_direita)
-        linha_esquerda = valid_or_fallback(linha_esquerda)
+        linha_direita1 = valid_or_fallback(linha_direita1)
+        linha_esquerda1 = valid_or_fallback(linha_esquerda1)
+
+        linha_direita2 = None
+        linha_esquerda2 = None
+        if dois_buffers:
+            linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+            linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
 
         # ===== Geração de pontos ao longo das linhas =====
         def gerar_pontos(geom_line: QgsGeometry) -> list:
             comp = geom_line.length()
-            if comp <= 0:
-                return []
-            # inclui o último ponto (extremidade)
             dist = 0.0
             pontos = []
             while dist < comp:
                 pontos.append(geom_line.interpolate(dist))
                 dist += spacing_m
-            # garantir inclusão do fim da linha
             pontos.append(geom_line.interpolate(comp))
             return pontos
 
-        pontos_direita = gerar_pontos(linha_direita)
-        pontos_esquerda = gerar_pontos(linha_esquerda)
+        pontos_direita1 = gerar_pontos(linha_direita1)
+        pontos_esquerda1 = gerar_pontos(linha_esquerda1)
+        pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
+        pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
+        pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
 
-        pontos_eixo = []
-        if incluir_eixo:
-            pontos_eixo = gerar_pontos(linha_eixo)
-
-        # ===== Ajuste de ordem (zig-zag) =====
-        def inverter_se_necessario(pontos: list, ref_point: QgsGeometry) -> list:
-            if not pontos or ref_point is None:
-                return pontos
-            dist_inicio = pontos[0].distance(ref_point)
-            dist_fim = pontos[-1].distance(ref_point)
+        # ===== Ajuste de ordem (reverse) =====
+        def ajustar_ordem(pontos_atual, pontos_anterior):
+            if not pontos_atual or not pontos_anterior:
+                return pontos_atual
+            dist_inicio = pontos_atual[0].distance(pontos_anterior[-1])
+            dist_fim = pontos_atual[-1].distance(pontos_anterior[-1])
             if dist_fim < dist_inicio:
-                pontos.reverse()
-            return pontos
-        
-        if pontos_direita and pontos_eixo:
-            pontos_eixo = inverter_se_necessario(pontos_eixo, pontos_direita[-1])
-        if pontos_esquerda and pontos_eixo:
-            pontos_esquerda = inverter_se_necessario(pontos_esquerda, pontos_eixo[-1])
+                pontos_atual.reverse()
+            return pontos_atual
 
-        # ===== Camada de pontos (CRS igual ao da linha) =====
-        authid = crs.authid() or ""
-        if not authid:
-            raise QgsProcessingException("❌ CRS authid not available for axis layer.")
+        if pontos_direita2:
+            pontos_direita2 = ajustar_ordem(pontos_direita2, pontos_direita1)
+        if pontos_eixo:
+            pontos_eixo = ajustar_ordem(pontos_eixo, pontos_direita2 if pontos_direita2 else pontos_direita1)
+        if pontos_esquerda1:
+            pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, pontos_eixo if pontos_eixo else (pontos_direita2 if pontos_direita2 else pontos_direita1))
+        if pontos_esquerda2:
+            pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, pontos_esquerda1)
 
-        pontos_layer = QgsVectorLayer(f'Point?crs={authid}', 'Photo Points', 'memory')
+        # ===== Camada de pontos =====
+        pontos_layer = QgsVectorLayer(f'Point?crs={crs.authid()}', 'Photo Points', 'memory')
         prov = pontos_layer.dataProvider()
-
-        # Definir campos
         prov.addAttributes([
             QgsField("id", QVariant.Int),
             QgsField("latitude", QVariant.Double),
@@ -239,31 +225,76 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         ])
         pontos_layer.updateFields()
 
-        # ===== Criar features com numeração sequencial =====
+        # ===== Criar features =====
         contador = 1
         transformador = QgsCoordinateTransform(pontos_layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
 
-        # ===== Criar sequência de pontos =====
-        seq = []
-        if pontos_direita:
-            seq.append((pontos_direita, 'direita'))
+        # ===== Função para ajustar ordem entre linhas =====
+        def ajustar_ordem(pontos_atual, pontos_anterior):
+            if not pontos_atual or not pontos_anterior:
+                return pontos_atual
+            dist_inicio = pontos_atual[0].distance(pontos_anterior[-1])
+            dist_fim = pontos_atual[-1].distance(pontos_anterior[-1])
+            if dist_fim < dist_inicio:
+                pontos_atual.reverse()
+            return pontos_atual
 
+        # ===== Determinar lado inicial da linha-eixo =====
+        linha_pts = linha_geom.asPolyline()
+        inicio = QgsPointXY(linha_pts[0])
+        fim = QgsPointXY(linha_pts[-1])
+
+        # Usamos o vetor inicial para decidir se começamos pela direita ou esquerda
+        # (simplificação: sempre começar pela direita; se quiser inverter, basta trocar)
+        comeca_direita = True
+
+        # ===== Construir sequência =====
+        seq = []
+
+        if dois_buffers:
+            if comeca_direita:
+                # começa pela direita mais extrema
+                if pontos_direita2:
+                    seq.append((pontos_direita2, 'direita2'))
+                if pontos_direita1:
+                    pontos_direita1 = ajustar_ordem(pontos_direita1, seq[-1][0])
+                    seq.append((pontos_direita1, 'direita1'))
+            else:
+                # começa pela esquerda mais extrema
+                if pontos_esquerda2:
+                    seq.append((pontos_esquerda2, 'esquerda2'))
+                if pontos_esquerda1:
+                    pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, seq[-1][0])
+                    seq.append((pontos_esquerda1, 'esquerda1'))
+        else:
+            # um buffer: começa direto no lado inicial (já estava correto)
+            if comeca_direita and pontos_direita1:
+                seq.append((pontos_direita1, 'direita1'))
+            elif pontos_esquerda1:
+                seq.append((pontos_esquerda1, 'esquerda1'))
+
+        # Depois continua zig-zag normalmente:
         if incluir_eixo and pontos_eixo:
+            pontos_eixo = ajustar_ordem(pontos_eixo, seq[-1][0])
             seq.append((pontos_eixo, 'eixo'))
 
-        if pontos_esquerda:
-            # Se não incluir eixo, inverter esquerda para reduzir percurso
-            if not incluir_eixo and pontos_direita and pontos_esquerda:
-                dist_inicio = pontos_esquerda[0].distance(pontos_direita[-1])
-                dist_fim = pontos_esquerda[-1].distance(pontos_direita[-1])
-                if dist_fim < dist_inicio:
-                    pontos_esquerda.reverse()
-            seq.append((pontos_esquerda, 'esquerda'))
+        # adiciona o lado oposto
+        if comeca_direita:
+            if pontos_esquerda1:
+                pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, seq[-1][0])
+                seq.append((pontos_esquerda1, 'esquerda1'))
+            if pontos_esquerda2:
+                pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, seq[-1][0])
+                seq.append((pontos_esquerda2, 'esquerda2'))
+        else:
+            if pontos_direita1:
+                pontos_direita1 = ajustar_ordem(pontos_direita1, seq[-1][0])
+                seq.append((pontos_direita1, 'direita1'))
+            if pontos_direita2:
+                pontos_direita2 = ajustar_ordem(pontos_direita2, seq[-1][0])
+                seq.append((pontos_direita2, 'direita2'))
 
-        # ===== Criar features com numeração sequencial =====
-        contador = 1
-        transformador = QgsCoordinateTransform(pontos_layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
-
+        # ===== Inserir features numeradas =====
         for lista, tipo in seq:
             for ponto in lista:
                 if not ponto or ponto.isEmpty():
@@ -278,7 +309,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                     contador,
                     geom_wgs.y(),   # latitude
                     geom_wgs.x(),   # longitude
-                    None,           # altitude será preenchida depois
+                    None,           # altitude preenchida depois
                     H               # height (altura de voo)
                 ])
                 prov.addFeature(f)
@@ -286,27 +317,19 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
 
         pontos_layer.updateExtents()
         feedback.pushInfo(f"✅ {contador-1} Photo Points generated.")
-
-        # ===== Obter altitude do MDE se fornecido =====
+        
+        # ===== Altitude via MDE =====
         if camadaMDE:
             transformadorMDE = QgsCoordinateTransform(pontos_layer.crs(), camadaMDE.crs(), QgsProject.instance())
-            
             pontos_layer.startEditing()
-
             for f in pontos_layer.getFeatures():
-                point = f.geometry().asPoint()
-                point_transf = transformadorMDE.transform(QgsPointXY(point.x(), point.y()))
-                value, result = camadaMDE.dataProvider().sample(point_transf, 1)
-
+                pt = f.geometry().asPoint()
+                pt_transf = transformadorMDE.transform(QgsPointXY(pt.x(), pt.y()))
+                value, result = camadaMDE.dataProvider().sample(pt_transf, 1)
                 if result:
                     f["altitude"] = value + H
                     f["height"] = H
-                    pontos_layer.updateFeature(f)   
-                else:
-                    f["height"] = H
                     pontos_layer.updateFeature(f)
-                    feedback.pushInfo(f"⚠️ Ponto {f['id']} fora da extensão do MDE")
-            
             pontos_layer.commitChanges()
 
         # ===== Reprojetar para WGS84 e aplicar Z =====
