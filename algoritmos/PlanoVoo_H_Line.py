@@ -239,20 +239,21 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                 pontos_atual.reverse()
             return pontos_atual
 
-        # ===== Determinar lado inicial da linha-eixo =====
+        # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
         linha_pts = linha_geom.asPolyline()
         inicio = QgsPointXY(linha_pts[0])
         fim = QgsPointXY(linha_pts[-1])
 
-        # Usamos o vetor inicial para decidir se começamos pela direita ou esquerda
-        # (simplificação: sempre começar pela direita; se quiser inverter, basta trocar)
-        comeca_direita = True
+        dx = fim.x() - inicio.x()
+        dy = fim.y() - inicio.y()
+
+        lado_inicial = "direita" if abs(dx) >= abs(dy) else "esquerda"
 
         # ===== Construir sequência =====
         seq = []
 
         if dois_buffers:
-            if comeca_direita:
+            if lado_inicial:
                 # começa pela direita mais extrema
                 if pontos_direita2:
                     seq.append((pontos_direita2, 'direita2'))
@@ -268,7 +269,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                     seq.append((pontos_esquerda1, 'esquerda1'))
         else:
             # um buffer: começa direto no lado inicial (já estava correto)
-            if comeca_direita and pontos_direita1:
+            if lado_inicial and pontos_direita1:
                 seq.append((pontos_direita1, 'direita1'))
             elif pontos_esquerda1:
                 seq.append((pontos_esquerda1, 'esquerda1'))
@@ -279,7 +280,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             seq.append((pontos_eixo, 'eixo'))
 
         # adiciona o lado oposto
-        if comeca_direita:
+        if lado_inicial:
             if pontos_esquerda1:
                 pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, seq[-1][0])
                 seq.append((pontos_esquerda1, 'esquerda1'))
@@ -423,3 +424,5 @@ It generates <b>CSV</b> file compatible with the <b>Litchi app</b> and 2 Layers 
                       </div>
                     </div>'''
         return self.tr(self.texto) + corpo
+
+        
