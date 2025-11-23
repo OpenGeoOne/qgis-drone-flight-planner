@@ -226,7 +226,6 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         pontos_layer.updateFields()
 
         # ===== Criar features =====
-        contador = 1
         transformador = QgsCoordinateTransform(pontos_layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
 
         # ===== Função para ajustar ordem entre linhas =====
@@ -254,27 +253,18 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
 
         if dois_buffers:
             if lado_inicial:
-                # começa pela direita mais extrema
-                if pontos_direita2:
-                    seq.append((pontos_direita2, 'direita2'))
-                if pontos_direita1:
-                    pontos_direita1 = ajustar_ordem(pontos_direita1, seq[-1][0])
-                    seq.append((pontos_direita1, 'direita1'))
-            else:
-                # começa pela esquerda mais extrema
-                if pontos_esquerda2:
-                    seq.append((pontos_esquerda2, 'esquerda2'))
-                if pontos_esquerda1:
-                    pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, seq[-1][0])
-                    seq.append((pontos_esquerda1, 'esquerda1'))
-        else:
-            # um buffer: começa direto no lado inicial (já estava correto)
-            if lado_inicial and pontos_direita1:
+                seq.append((pontos_direita2, 'direita2'))
                 seq.append((pontos_direita1, 'direita1'))
-            elif pontos_esquerda1:
+            else:
+                seq.append((pontos_esquerda2, 'esquerda2'))
+                seq.append((pontos_esquerda1, 'esquerda1'))
+        else:
+            if lado_inicial:
+                seq.append((pontos_direita1, 'direita1'))
+            else:
                 seq.append((pontos_esquerda1, 'esquerda1'))
 
-        # Depois continua zig-zag normalmente:
+        # Depois continua zig-zag
         if incluir_eixo and pontos_eixo:
             pontos_eixo = ajustar_ordem(pontos_eixo, seq[-1][0])
             seq.append((pontos_eixo, 'eixo'))
@@ -282,20 +272,17 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         # adiciona o lado oposto
         if lado_inicial:
             if pontos_esquerda1:
-                pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, seq[-1][0])
                 seq.append((pontos_esquerda1, 'esquerda1'))
             if pontos_esquerda2:
-                pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, seq[-1][0])
                 seq.append((pontos_esquerda2, 'esquerda2'))
         else:
             if pontos_direita1:
-                pontos_direita1 = ajustar_ordem(pontos_direita1, seq[-1][0])
                 seq.append((pontos_direita1, 'direita1'))
             if pontos_direita2:
-                pontos_direita2 = ajustar_ordem(pontos_direita2, seq[-1][0])
                 seq.append((pontos_direita2, 'direita2'))
 
         # ===== Inserir features numeradas =====
+        contador = 1
         for lista, tipo in seq:
             for ponto in lista:
                 if not ponto or ponto.isEmpty():
@@ -424,5 +411,3 @@ It generates <b>CSV</b> file compatible with the <b>Litchi app</b> and 2 Layers 
                       </div>
                     </div>'''
         return self.tr(self.texto) + corpo
-
-        
