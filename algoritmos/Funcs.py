@@ -484,6 +484,11 @@ def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None,
         s.setValue(prefixo + "addPSimplified", add2)
         s.setValue(prefixo + "addLSimplified", add3)
 
+    elif tipoVoo == "H_Merge":
+        s.setValue(prefixo + "csv1Merge", csvI)
+        s.setValue(prefixo + "csv2Merge", csv)
+        s.setValue(prefixo + "addCsvMerge", add1)
+
 def loadParametros(tipoVoo):
     s = QgsSettings()
     prefixo = "qgis-drone-flight-planner/"
@@ -564,6 +569,7 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "rasterVC", ""),
             s.value(prefixo + "csvVC", "")
         )
+    
     elif tipoVoo == "H_Simplified":
         return (
             s.value(prefixo + "csvInSimplified", ""),
@@ -573,6 +579,13 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "addPCsvSimplified", False),
             s.value(prefixo + "addPSimplified", False),
             s.value(prefixo + "addLSimplified", False)
+        )
+    
+    elif tipoVoo == "H_Merge":
+        return (
+            s.value(prefixo + "csv1Merge", ""),
+            s.value(prefixo + "csv2Merge", ""),
+            s.value(prefixo + "addCsvMerge", "")
         )
 
 def removeLayersReproj(txtFinal):
