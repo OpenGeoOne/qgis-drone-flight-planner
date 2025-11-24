@@ -136,8 +136,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                         df=parameters['df'],
                         dfop=parameters['dfOpc'])
 
-        # ===============================================================================
-        # Normalizar para LineString
+        # ===== Normalizar para LineString ==============================================
         def to_linestring(g: QgsGeometry) -> QgsGeometry:
             if g.isMultipart():
                 ml = g.asMultiPolyline()
@@ -177,6 +176,16 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
             linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
 
+        # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
+        linha_pts = linha_geom.asPolyline()
+        inicio = QgsPointXY(linha_pts[0])
+        fim = QgsPointXY(linha_pts[-1])
+
+        dx = fim.x() - inicio.x()
+        dy = fim.y() - inicio.y()
+
+        lado_inicial = "direita" if abs(dx) >= abs(dy) else "esquerda"
+
         # ===== Geração de pontos ao longo das linhas =====
         def gerar_pontos(geom_line: QgsGeometry) -> list:
             comp = geom_line.length()
@@ -188,11 +197,18 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             pontos.append(geom_line.interpolate(comp))
             return pontos
 
-        pontos_direita1 = gerar_pontos(linha_direita1)
-        pontos_esquerda1 = gerar_pontos(linha_esquerda1)
-        pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
-        pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
-        pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
+        if lado_inicial == "direita":
+            pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
+            pontos_esquerda1 = gerar_pontos(linha_esquerda1)
+            pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
+            pontos_direita1 = gerar_pontos(linha_direita1)
+            pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
+        else:
+            pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
+            pontos_direita1 = gerar_pontos(linha_direita1)
+            pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
+            pontos_esquerda1 = gerar_pontos(linha_esquerda1)
+            pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
 
         # ===== Ajuste de ordem (reverse) =====
         def ajustar_ordem(pontos_atual, pontos_anterior):
@@ -211,7 +227,40 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         if pontos_esquerda1:
             pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, pontos_eixo if pontos_eixo else (pontos_direita2 if pontos_direita2 else pontos_direita1))
         if pontos_esquerda2:
-            pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, pontos_esquerda1)
+            pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, pontos_esquerda1)   
+        
+        # ===== Construir sequência =====
+        seq = []
+
+        if dois_buffers:
+            if lado_inicial == "esquerda":
+                seq.append((pontos_direita2, 'direita2'))
+                seq.append((pontos_direita1, 'direita1'))
+            else:
+                seq.append((pontos_esquerda2, 'esquerda2'))
+                seq.append((pontos_esquerda1, 'esquerda1'))
+        else:
+            if lado_inicial == "esquerda":
+                seq.append((pontos_direita1, 'direita1'))
+            else:
+                seq.append((pontos_esquerda1, 'esquerda1'))
+
+        # Eixo
+        if incluir_eixo and pontos_eixo:
+            #pontos_eixo = ajustar_ordem(pontos_eixo, seq[-1][0])
+            seq.append((pontos_eixo, 'eixo'))
+
+        # adiciona o lado oposto
+        if lado_inicial == "esquerda":
+            if pontos_esquerda1:
+                seq.append((pontos_esquerda1, 'esquerda1'))
+            if pontos_esquerda2:
+                seq.append((pontos_esquerda2, 'esquerda2'))
+        else:
+            if pontos_direita1:
+                seq.append((pontos_direita1, 'direita1'))
+            if pontos_direita2:
+                seq.append((pontos_direita2, 'direita2'))
 
         # ===== Camada de pontos =====
         pontos_layer = QgsVectorLayer(f'Point?crs={crs.authid()}', 'Photo Points', 'memory')
@@ -225,63 +274,9 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         ])
         pontos_layer.updateFields()
 
-        # ===== Criar features =====
+        # ===== Inserir features numeradas =====
         transformador = QgsCoordinateTransform(pontos_layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
 
-        # ===== Função para ajustar ordem entre linhas =====
-        def ajustar_ordem(pontos_atual, pontos_anterior):
-            if not pontos_atual or not pontos_anterior:
-                return pontos_atual
-            dist_inicio = pontos_atual[0].distance(pontos_anterior[-1])
-            dist_fim = pontos_atual[-1].distance(pontos_anterior[-1])
-            if dist_fim < dist_inicio:
-                pontos_atual.reverse()
-            return pontos_atual
-
-        # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
-        linha_pts = linha_geom.asPolyline()
-        inicio = QgsPointXY(linha_pts[0])
-        fim = QgsPointXY(linha_pts[-1])
-
-        dx = fim.x() - inicio.x()
-        dy = fim.y() - inicio.y()
-
-        lado_inicial = "direita" if abs(dx) >= abs(dy) else "esquerda"
-
-        # ===== Construir sequência =====
-        seq = []
-
-        if dois_buffers:
-            if lado_inicial:
-                seq.append((pontos_direita2, 'direita2'))
-                seq.append((pontos_direita1, 'direita1'))
-            else:
-                seq.append((pontos_esquerda2, 'esquerda2'))
-                seq.append((pontos_esquerda1, 'esquerda1'))
-        else:
-            if lado_inicial:
-                seq.append((pontos_direita1, 'direita1'))
-            else:
-                seq.append((pontos_esquerda1, 'esquerda1'))
-
-        # Depois continua zig-zag
-        if incluir_eixo and pontos_eixo:
-            pontos_eixo = ajustar_ordem(pontos_eixo, seq[-1][0])
-            seq.append((pontos_eixo, 'eixo'))
-
-        # adiciona o lado oposto
-        if lado_inicial:
-            if pontos_esquerda1:
-                seq.append((pontos_esquerda1, 'esquerda1'))
-            if pontos_esquerda2:
-                seq.append((pontos_esquerda2, 'esquerda2'))
-        else:
-            if pontos_direita1:
-                seq.append((pontos_direita1, 'direita1'))
-            if pontos_direita2:
-                seq.append((pontos_direita2, 'direita2'))
-
-        # ===== Inserir features numeradas =====
         contador = 1
         for lista, tipo in seq:
             for ponto in lista:
