@@ -28,7 +28,7 @@ import os
 
 class PlanoVoo_H_Line(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hVooL, abGroundL, dlL, dfopL, dfL, velocL, tStayL, gimbalL, rasterL, csvL = loadParametros("H_Manual")
+        hVooL, abGroundL, dlL, dfopL, dfL, velocL, tStayL, gimbalL, rasterL, csvL = loadParametros("H_Line")
 
         self.addParameter(QgsProcessingParameterVectorLayer('linha', 'Axis_Line', types=[QgsProcessing.TypeVectorLine]))
         
@@ -331,19 +331,19 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
-        """"
+        
         # =============L I T C H I==========================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, deltaFrontOpc)
+            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, deltaFrontOpc)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        """
+        
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
         feedback.pushInfo("✅ Horizontal Flight Plan successfully executed.")

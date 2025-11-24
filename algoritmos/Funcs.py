@@ -54,7 +54,7 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
          writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
          writer.writeheader()
 
-         if flight_type == "H":
+         if flight_type == "H" or flight_type == "L":
             alturavoo = H
             mode_gimbal = 2
             angulo_gimbal = gimbalAng
