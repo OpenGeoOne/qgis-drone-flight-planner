@@ -197,7 +197,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             pontos.append(geom_line.interpolate(comp))
             return pontos
 
-        if lado_inicial == "direita":
+        if lado_inicial == "esquerda":
             pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
             pontos_esquerda1 = gerar_pontos(linha_esquerda1)
             pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
@@ -210,7 +210,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             pontos_esquerda1 = gerar_pontos(linha_esquerda1)
             pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
 
-        # ===== Ajuste de ordem (reverse) =====
+        # ===== Ajuste da ordem dos pontos =====
         def ajustar_ordem(pontos_atual, pontos_anterior):
             if not pontos_atual or not pontos_anterior:
                 return pontos_atual
@@ -220,47 +220,46 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                 pontos_atual.reverse()
             return pontos_atual
 
-        if pontos_direita2:
-            pontos_direita2 = ajustar_ordem(pontos_direita2, pontos_direita1)
-        if pontos_eixo:
-            pontos_eixo = ajustar_ordem(pontos_eixo, pontos_direita2 if pontos_direita2 else pontos_direita1)
-        if pontos_esquerda1:
-            pontos_esquerda1 = ajustar_ordem(pontos_esquerda1, pontos_eixo if pontos_eixo else (pontos_direita2 if pontos_direita2 else pontos_direita1))
-        if pontos_esquerda2:
-            pontos_esquerda2 = ajustar_ordem(pontos_esquerda2, pontos_esquerda1)   
-        
-        # ===== Construir sequência =====
         seq = []
 
-        if dois_buffers:
-            if lado_inicial == "esquerda":
-                seq.append((pontos_direita2, 'direita2'))
-                seq.append((pontos_direita1, 'direita1'))
-            else:
-                seq.append((pontos_esquerda2, 'esquerda2'))
-                seq.append((pontos_esquerda1, 'esquerda1'))
-        else:
-            if lado_inicial == "esquerda":
-                seq.append((pontos_direita1, 'direita1'))
-            else:
-                seq.append((pontos_esquerda1, 'esquerda1'))
+        def append_seg(lista_pontos, nome):
+            # Não adiciona listas vazias
+            if not lista_pontos:
+                return
+            # Ajusta ordem em relação ao último segmento já adicionado
+            if seq:
+                lista_pontos = ajustar_ordem(lista_pontos, seq[-1][0])
+            seq.append((lista_pontos, nome))
 
-        # Eixo
-        if incluir_eixo and pontos_eixo:
-            #pontos_eixo = ajustar_ordem(pontos_eixo, seq[-1][0])
-            seq.append((pontos_eixo, 'eixo'))
+        # Detectar quantidade de buffers com base nas listas calculadas
+        dois_buffers = bool(pontos_direita2) and bool(pontos_esquerda2)
 
-        # adiciona o lado oposto
         if lado_inicial == "esquerda":
-            if pontos_esquerda1:
-                seq.append((pontos_esquerda1, 'esquerda1'))
-            if pontos_esquerda2:
-                seq.append((pontos_esquerda2, 'esquerda2'))
-        else:
-            if pontos_direita1:
-                seq.append((pontos_direita1, 'direita1'))
-            if pontos_direita2:
-                seq.append((pontos_direita2, 'direita2'))
+            if dois_buffers:
+                append_seg(pontos_esquerda2, 'esquerda2')
+                append_seg(pontos_esquerda1, 'esquerda1')
+                if incluir_eixo and pontos_eixo:
+                    append_seg(pontos_eixo, 'eixo')
+                append_seg(pontos_direita1, 'direita1')
+                append_seg(pontos_direita2, 'direita2')
+            else:
+                append_seg(pontos_esquerda1, 'esquerda1')
+                if incluir_eixo and pontos_eixo:
+                    append_seg(pontos_eixo, 'eixo')
+                append_seg(pontos_direita1, 'direita1')
+        else:  # lado_inicial == "direita"
+            if dois_buffers:
+                append_seg(pontos_direita2, 'direita2')
+                append_seg(pontos_direita1, 'direita1')
+                if incluir_eixo and pontos_eixo:
+                    append_seg(pontos_eixo, 'eixo')
+                append_seg(pontos_esquerda1, 'esquerda1')
+                append_seg(pontos_esquerda2, 'esquerda2')
+            else:
+                append_seg(pontos_direita1, 'direita1')
+                if incluir_eixo and pontos_eixo:
+                    append_seg(pontos_eixo, 'eixo')
+                append_seg(pontos_esquerda1, 'esquerda1')      
 
         # ===== Camada de pontos =====
         pontos_layer = QgsVectorLayer(f'Point?crs={crs.authid()}', 'Photo Points', 'memory')
