@@ -159,13 +159,17 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             raise QgsProcessingException("❌ Computed front spacing must be > 0.")
 
         # ===== Offsets laterais (direita/esquerda) =====
-        linha_direita1 = linha_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-        linha_esquerda1 = linha_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-
         def valid_or_fallback(curve: QgsGeometry) -> QgsGeometry:
             if curve and not curve.isEmpty() and curve.isGeosValid():
                 return to_linestring(curve)
             return linha_geom
+        
+        if incluir_eixo:
+            linha_direita1 = linha_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_esquerda1 = linha_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+        else:
+            linha_direita1 = linha_geom.offsetCurve(-deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_esquerda1 = linha_geom.offsetCurve(deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
 
         linha_direita1 = valid_or_fallback(linha_direita1)
         linha_esquerda1 = valid_or_fallback(linha_esquerda1)
@@ -173,8 +177,12 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         linha_direita2 = None
         linha_esquerda2 = None
         if dois_buffers:
-            linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
-            linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+            if incluir_eixo:
+                linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+            else:
+                linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat + deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat - deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
 
         # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
         linha_pts = linha_geom.asPolyline()

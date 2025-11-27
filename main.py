@@ -69,6 +69,7 @@ class GeoFlightPlanner:
 
         # Add Simplified submenu actions
         self._add_action("Simplify Waypoints", lambda: self._run_algorithm('SimplifyWaypoints'.lower()), csv_menu, os.path.join(icon_dir, "CSV.png"))
+        self._add_action("Merge CSV Files", lambda: self._run_algorithm('MergeCSV'.lower()), csv_menu, os.path.join(icon_dir, "CSV.png"))
 
         # Add submenus to main menu
         self.menu.addMenu(horizontal_menu)
