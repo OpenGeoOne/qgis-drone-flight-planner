@@ -35,6 +35,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterVectorLayer('circulo_base','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterVectorLayer('ponto_inicial','Start Point', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber('altura','Object Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hObjVC))
         self.addParameter(QgsProcessingParameterNumber('alturaMin','Start Height (m)',
@@ -65,6 +66,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
 
         H = parameters['altura']
         h = parameters['alturaMin']
+        inverte = parameters['inverte']
         numpartes = parameters['numpartes'] # deltaH será calculado
         deltaV = parameters['deltaVertical']
         velocidade = parameters['velocidade']
@@ -93,7 +95,6 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
             
-        
         # Verificar as Geometrias
         if circulo_base.featureCount() != 1:
             raise QgsProcessingException("❌ Flight base Circle must contain only one circle.")
@@ -101,7 +102,6 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         if ponto_inicial.featureCount() != 1:
             raise QgsProcessingException("❌ Start Point must contain only one point.")
         
-
         # Verificar o SRC das Camadas
         crs = circulo_base.crs()
         crsP = ponto_inicial.crs() # não usamos o crsP, apenas para verificar a camada
@@ -130,7 +130,6 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
             ponto_inicial_move = QgsProject.instance().mapLayersByName(nome)[0]
         else:
             raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VC",
@@ -165,6 +164,9 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         deltaH = comprimento_circulo / numpartes
 
         alturas = list(np.arange(h, H + h + deltaV, deltaV))
+
+        if inverte:
+            alturas = list(reversed(alturas))
 
         feedback.pushInfo(f"✅ Height: {H}, Horizontal Spacing: {round(deltaH,2)}, Vertical Spacing: {deltaV}")
 
