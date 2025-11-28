@@ -29,7 +29,7 @@ import os
 
 class CSV_Merge(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        csv1Merge, csv2Merge, addCsvMerge = loadParametros("H_Merge")
+        csv1Merge, csv2Merge, addCsvMerge, addPointsMerge = loadParametros("H_Merge")
        
         self.addParameter(QgsProcessingParameterFile(
             'csv1', 
@@ -51,6 +51,11 @@ class CSV_Merge(QgsProcessingAlgorithm):
             fileFilter='CSV Files (*.csv)', 
             defaultValue=addCsvMerge 
         ))
+        self.addParameter(QgsProcessingParameterBoolean(
+            'ver_Points_merge', 
+            'Add merged points layer to project', 
+            defaultValue=addPointsMerge
+        ))
 
     def processAlgorithm(self, parameters, context, feedback):
         arquivo_csv1 = self.parameterAsFile(parameters, 'csv1', context)
@@ -66,9 +71,11 @@ class CSV_Merge(QgsProcessingAlgorithm):
         saveParametros("H_Merge",
                         csvI=arquivo_csv1,
                         csv=arquivo_csv2,
-                        add1=arquivo_csvS)
+                        add1=arquivo_csvS,
+                        add2=parameters['ver_Points_merge']
+                        )
                                 
-        # ========================================================================
+        # =========================================================================
         # Processo: juntar os dois CSV em um terceiro
         # ========================================================================
         # Abrir os dois arquivos de entrada
@@ -97,6 +104,20 @@ class CSV_Merge(QgsProcessingAlgorithm):
                 # Escrever linhas do segundo CSV
                 for row in reader2:
                     writer.writerow(row)
+
+        if parameters['ver_Points_merge']:
+            csv_path = self.parameterAsString(parameters, 'csvS', context)
+            csv_name = os.path.splitext(os.path.basename(csv_path))[0]
+
+            # Criar camada a partir do CSV
+            uri = f"file:///{csv_path}?delimiter=,&xField=longitude&yField=latitude&crs=EPSG:4326"
+            merged_layer = QgsVectorLayer(uri, f"Merged Points - {csv_name}", "delimitedtext")
+
+            if not merged_layer.isValid():
+                feedback.reportError("❌ Não foi possível carregar o CSV como camada de pontos.")
+            else:
+                QgsProject.instance().addMapLayer(merged_layer)
+                feedback.pushInfo("✓ Merged points layer added to project")
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ CSV executed successfully.")

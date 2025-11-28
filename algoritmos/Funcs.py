@@ -488,6 +488,7 @@ def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None,
         s.setValue(prefixo + "csv1Merge", csvI)
         s.setValue(prefixo + "csv2Merge", csv)
         s.setValue(prefixo + "addCsvMerge", add1)
+        s.setValue(prefixo + "addPointsMerge", add2)
 
 def loadParametros(tipoVoo):
     s = QgsSettings()
@@ -585,7 +586,8 @@ def loadParametros(tipoVoo):
         return (
             s.value(prefixo + "csv1Merge", ""),
             s.value(prefixo + "csv2Merge", ""),
-            s.value(prefixo + "addCsvMerge", "")
+            s.value(prefixo + "addCsvMerge", ""),
+            s.value(prefixo + "addPointsMerge", False)
         )
 
 def removeLayersReproj(txtFinal):
