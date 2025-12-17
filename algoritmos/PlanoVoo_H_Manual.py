@@ -96,7 +96,6 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
             
-        
         # Verificar as Geometrias
         if area_layer.featureCount() != 1:
             raise QgsProcessingException("❌ The Area must contain only one polygon.")

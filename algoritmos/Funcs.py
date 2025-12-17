@@ -217,7 +217,7 @@ def reprojeta_camada_WGS84(layer, crs_wgs, transformador):
    return reproj_layer
 
 def simbologiaLinhaVoo(flight_type, layer):
-   if flight_type == "H":
+   if flight_type == "H" or flight_type == "L":
       line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})  # Linha base
 
       seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})

@@ -342,6 +342,52 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         # ===== Mostra a camada Pontos de Fotos criada =====
         QgsProject.instance().addMapLayer(pontos_reproj)
 
+
+                # ===== Camada de linhas unindo os pontos de cada linha de voo =====
+        linhas_voo_layer = QgsVectorLayer(
+            f'LineString?crs={crs.authid()}',
+            'Flight Lines',
+            'memory'
+        )
+        prov_linhas = linhas_voo_layer.dataProvider()
+
+        prov_linhas.addAttributes([
+            QgsField("id", QVariant.Int),
+            QgsField("tipo", QVariant.String)
+        ])
+        linhas_voo_layer.updateFields()
+
+        id_linha = 1
+
+        for lista_pontos, tipo in seq:
+            if not lista_pontos or len(lista_pontos) < 2:
+                continue
+
+            pts = []
+            for p in lista_pontos:
+                if not p or p.isEmpty():
+                    continue
+                pt = p.asPoint()
+                pts.append(QgsPointXY(pt.x(), pt.y()))
+
+            if len(pts) < 2:
+                continue
+
+            feat = QgsFeature()
+            feat.setGeometry(QgsGeometry.fromPolylineXY(pts))
+            feat.setAttributes([id_linha, tipo])
+            prov_linhas.addFeature(feat)
+
+            id_linha += 1
+
+        linhas_voo_layer.updateExtents()
+
+        # ===== Simbologia das linhas de voo =====
+        simbologiaLinhaVoo('L', linhas_voo_layer)
+
+        # ===== Adiciona a camada de linhas ao projeto =====
+        QgsProject.instance().addMapLayer(linhas_voo_layer)
+
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
         
