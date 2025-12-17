@@ -444,7 +444,7 @@ def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None,
         s.setValue(prefixo + "hVooL", h)
         s.setValue(prefixo + "abGroundL", abGround)
         s.setValue(prefixo + "dlL", dl)
-        s.setValue(prefixo + "dfopL", dfop)
+        s.setValue(prefixo + "nLinL", dfop)
         s.setValue(prefixo + "dfL", df)
         s.setValue(prefixo + "velocL", v)
         s.setValue(prefixo + "tStayL", t)
@@ -536,7 +536,7 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "hVooL", 100),
             s.value(prefixo + "abGroundL", True),
             s.value(prefixo + "dlL", 10),
-            s.value(prefixo + "dfopL", 0),
+            s.value(prefixo + "nLinL", 2),
             s.value(prefixo + "dfL", 10),
             s.value(prefixo + "velocL", 8),
             s.value(prefixo + "tStayL", 0),

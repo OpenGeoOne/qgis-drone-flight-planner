@@ -28,26 +28,22 @@ import os
 
 class PlanoVoo_H_Line(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hVooL, abGroundL, dlL, dfopL, dfL, velocL, tStayL, gimbalL, rasterL, csvL = loadParametros("H_Line")
+        hVooL, abGroundL, dlL, nLinL, dfL, velocL, tStayL, gimbalL, rasterL, csvL = loadParametros("H_Line")
 
         self.addParameter(QgsProcessingParameterVectorLayer('linha', 'Axis_Line', types=[QgsProcessing.TypeVectorLine]))
         
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooL))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)',defaultValue=abGroundL))
-        
-        self.addParameter(QgsProcessingParameterBoolean('incluir_eixo','Include photos on the center line',defaultValue=True))
 
-        self.addParameter(QgsProcessingParameterBoolean('dois_buffers','Use two buffers (left and right)',defaultValue=False))
-        
+        frontal_opts = [self.tr('2 Lines'), self.tr('3 Lines (Axis included)'), self.tr('4 Lines'), self.tr('5 Lines (Axis include)')]
+        self.addParameter(QgsProcessingParameterEnum('nLinhas', self.tr('Number of Flight Routes (from 1 to 5)'), options = frontal_opts, defaultValue= nLinL))
+
         self.addParameter(QgsProcessingParameterNumber('bf','Lateral Buffer (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dlL))
-
-        frontal_opts = [self.tr('Distance (meters)'), self.tr('Time (seconds)')]
-        self.addParameter(QgsProcessingParameterEnum('dfOpc', self.tr('Front Spacing Between Photos -- Options'), options = frontal_opts, defaultValue= dfopL))
-        self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos -- Value',
+        
+        self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=1,defaultValue=dfL))
-
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=1,maxValue=20,defaultValue=velocL))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
@@ -70,10 +66,26 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
 
         H = parameters['altura']
         terrain = parameters['aboveGround']
-        incluir_eixo = parameters['incluir_eixo']
-        dois_buffers = parameters['dois_buffers'] # se for False terá um Buffer só
+        # incluir_eixo  → controla se a linha central participa do voo
+        # dois_buffers  → controla se existe 2º offset de cada lado
+
+        n_linhas = parameters['nLinhas']
+        if n_linhas == 0:        # 2 linhas
+            incluir_eixo = False
+            dois_buffers = False
+        elif n_linhas == 1:      # 3 linhas (com eixo)
+            incluir_eixo = True
+            dois_buffers = False
+        elif n_linhas == 2:      # 4 linhas
+            incluir_eixo = False
+            dois_buffers = True
+        elif n_linhas == 3:      # 5 linhas (com eixo)
+            incluir_eixo = True
+            dois_buffers = True
+        else:
+            raise QgsProcessingException("❌ Invalid number of flight lines option.")
+
         deltaLat = parameters['bf']          # Distância Buffer de voo paralelas - sem cálculo
-        deltaFrontOpc = parameters['dfOpc']  # Em metros ou segundos
         deltaFront = parameters['df']        # Espaçamento Frontal entre as fotografias- sem cálculo
         velocidade = parameters['velocidade']
         tempo = parameters['tempo']
@@ -134,7 +146,8 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                         abGround=parameters['aboveGround'],
                         dl=parameters['bf'],
                         df=parameters['df'],
-                        dfop=parameters['dfOpc'])
+                        dfop=parameters['nLinhas']
+                        )
 
         # ===== Normalizar para LineString ==============================================
         def to_linestring(g: QgsGeometry) -> QgsGeometry:
@@ -149,15 +162,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             return g.convertToSingleType()
 
         linha_geom = to_linestring(geom)
-
-        # ===== Espaçamento frontal =====
-        if deltaFrontOpc == 0:
-            spacing_m = deltaFront
-        else:
-            spacing_m = velocidade * deltaFront
-        if spacing_m <= 0:
-            raise QgsProcessingException("❌ Computed front spacing must be > 0.")
-
+        
         # ===== Offsets laterais (direita/esquerda) =====
         def valid_or_fallback(curve: QgsGeometry) -> QgsGeometry:
             if curve and not curve.isEmpty() and curve.isGeosValid():
@@ -201,7 +206,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
             pontos = []
             while dist < comp:
                 pontos.append(geom_line.interpolate(dist))
-                dist += spacing_m
+                dist += deltaFront
             pontos.append(geom_line.interpolate(comp))
             return pontos
 
@@ -345,7 +350,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, deltaFrontOpc)
+            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, n_linhas)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
