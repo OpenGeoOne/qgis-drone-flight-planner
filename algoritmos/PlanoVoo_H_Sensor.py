@@ -22,7 +22,7 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima
+from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima, pontos3D
 from ..images.Imgs import *
 import processing
 import os
@@ -645,14 +645,13 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         # Point para PointZ
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
+            pontos_reproj = pontos3D(pontos_reproj, z_field="altitude")
+            simbologiaPontos3D(pontos_reproj)
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-
-        # Simbologia
-        simbologiaPontos(pontos_reproj)
-
-        # ===== PONTOS FOTOS ==========================
-        QgsProject.instance().addMapLayer(pontos_reproj)
+            simbologiaPontos(pontos_reproj)
+            
+            QgsProject.instance().addMapLayer(pontos_reproj)
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")

@@ -18,16 +18,17 @@ __date__ = '2024-12-02'
 __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
-from qgis.core import (
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
-    QgsVectorLayer,
-    QgsProject,
-    QgsFeature
+from qgis.core import *
+
+from qgis._3d import (
+    QgsPoint3DSymbol,
+    QgsVectorLayer3DRenderer,
+    QgsPhongMaterialSettings,
+    Qgs3DTypes
 )
 
-from qgis.core import *
 from qgis.PyQt.QtGui import QColor, QFont
+from qgis.PyQt.QtCore import QVariant
 import qgis.utils
 import processing, math
 import csv
@@ -167,7 +168,6 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
 
             # Escrever a linha no CSV
             writer.writerow(data)
-
 
 def addCampo(layer, field_name, field_type):
       layer.dataProvider().addAttributes([QgsField(field_name, field_type)])
@@ -605,3 +605,96 @@ def removeLayersReproj(txtFinal):
 
 def arredondar_para_cima(x, pot):
     return math.ceil(x * 10**pot) / 10**pot
+
+def pontos3D(layer, z_field):
+   crs = layer.crs().authid()
+   pointz_layer = QgsVectorLayer(f"PointZ?crs={crs}", layer.name(), "memory")
+   prov = pointz_layer.dataProvider()
+
+   fields = QgsFields()
+   for f in layer.fields():
+      fields.append(f)
+
+   fields.append(QgsField("z_alt", QVariant.Double))
+   prov.addAttributes(fields)
+   pointz_layer.updateFields()
+
+   # Criar feições com Z = altitude + height
+   feats_out = []
+
+   for feat in layer.getFeatures():
+      alt = feat["altitude"]
+      h = feat["height"]
+
+      if alt is None or h is None:
+         continue
+
+      z = float(alt) + float(h)
+
+      pt = feat.geometry().asPoint()
+      geomz = QgsGeometry.fromPoint(QgsPoint(pt.x(), pt.y(), z))
+
+      new_feat = QgsFeature(pointz_layer.fields())
+      new_feat.setGeometry(geomz)
+      new_feat.setAttributes(feat.attributes() + [z])
+
+      feats_out.append(new_feat)
+
+   prov.addFeatures(feats_out)
+   pointz_layer.updateExtents()
+
+   QgsProject.instance().addMapLayer(pointz_layer)
+
+   return pointz_layer
+
+def simbologiaPontos3D(layer):
+   symbol3d = QgsPoint3DSymbol()
+   symbol3d.setShape(QgsPoint3DSymbol.Cube)
+
+   # Altitude absoluta (não gruda no terreno)
+   symbol3d.setAltitudeClamping(Qgs3DTypes.AltClampAbsolute)
+
+   material = QgsPhongMaterialSettings()
+   material.setDiffuse(QColor(0, 0, 255))
+   symbol3d.setMaterialSettings(material)
+
+   renderer3d = QgsVectorLayer3DRenderer(symbol3d)
+   layer.setRenderer3D(renderer3d)
+
+   simbologiaPontos(layer)
+
+
+   """
+   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
+   renderer = QgsSingleSymbolRenderer(simbolo)
+   layer.setRenderer(renderer)
+
+   # Rótulos
+   settings = QgsPalLayerSettings()
+   settings.fieldName = "id"
+   settings.isExpression = False
+   settings.enabled = True
+   settings.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+
+   textoF = QgsTextFormat()
+   textoF.setFont(QFont("Arial", 10, QFont.Bold))
+   textoF.setSize(10)
+   textoF.setColor(QColor(0, 0, 255))
+
+   bufferS = QgsTextBufferSettings()
+   bufferS.setEnabled(True)
+   bufferS.setSize(1)
+   bufferS.setColor(QColor("white"))
+
+   textoF.setBuffer(bufferS)
+   settings.setFormat(textoF)
+
+   layer.setLabelsEnabled(True)
+   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+   """
+   # Atualizações
+   layer.trigger3DUpdate()
+   layer.triggerRepaint() 
+
+   return
+             
