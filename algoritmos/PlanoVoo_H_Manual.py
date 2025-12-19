@@ -22,7 +22,7 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima
+from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima, pontos3D
 from ..images.Imgs import *
 import processing
 import os
@@ -65,7 +65,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
 
         camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
 
-        H = parameters['altura']
+        altVoo = parameters['altura']
         terrain = parameters['aboveGround']
         deltaLat = parameters['dl']          # Distância das linhas de voo paralelas - sem cálculo
         deltaFrontOpc = parameters['dfOpc']  # Em metros ou segundos
@@ -504,7 +504,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         linha_voo_feature = QgsFeature()
         linha_voo_feature.setFields(linha_voo_layer.fields())
         linha_voo_feature.setAttribute("id", 1)
-        linha_voo_feature.setAttribute("height", H)
+        linha_voo_feature.setAttribute("height", altVoo)
         linha_voo_feature.setGeometry(linha_unica)
         linha_provider.addFeature(linha_voo_feature)
 
@@ -618,12 +618,12 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
                 # Obter o valor de Z do MDE
                 value, result = camadaMDE.dataProvider().sample(point_transf, 1)  # Resolução = 1
                 if result:
-                    f["altitude"] = value + H
-                    f["height"] = H
+                    f["altitude"] = value + altVoo
+                    f["height"] = altVoo
                     pontos_fotos.updateFeature(f)
         else:
             for f in pontos_fotos.getFeatures():
-                f["height"] = H
+                f["height"] = altVoo
                 pontos_fotos.updateFeature(f)
 
         pontos_fotos.commitChanges()
@@ -636,24 +636,23 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         # Point para PointZ
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
+            pontos_reproj = pontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj)
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-
-        # Simbologia
-        simbologiaPontos(pontos_reproj)
-
-        # ===== PONTOS FOTOS ==========================
-        QgsProject.instance().addMapLayer(pontos_reproj)
+            simbologiaPontos(pontos_reproj)
+            
+            QgsProject.instance().addMapLayer(pontos_reproj)
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
 
-        # =============L I T C H I==========================================================
+        # =============L I T C altVoo I==========================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, deltaFrontOpc)
+            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, altVoo, gimbalAng, terrain, deltaFrontOpc)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:

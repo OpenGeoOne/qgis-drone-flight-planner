@@ -22,7 +22,7 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import verificar_plugins, gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima
+from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, arredondar_para_cima, pontos3D
 from ..images.Imgs import *
 import os
 
@@ -64,7 +64,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
     
         camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
 
-        H = parameters['altura']
+        altVoo = parameters['altura']
         terrain = parameters['aboveGround']
         # incluir_eixo  → controla se a linha central participa do voo
         # dois_buffers  → controla se existe 2º offset de cada lado
@@ -305,7 +305,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                     geom_wgs.y(),   # latitude
                     geom_wgs.x(),   # longitude
                     None,           # altitude preenchida depois
-                    H               # height (altura de voo)
+                    altVoo               # height (altura de voo)
                 ])
                 prov.addFeature(f)
                 contador += 1
@@ -322,8 +322,8 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                 pt_transf = transformadorMDE.transform(QgsPointXY(pt.x(), pt.y()))
                 value, result = camadaMDE.dataProvider().sample(pt_transf, 1)
                 if result:
-                    f["altitude"] = value + H
-                    f["height"] = H
+                    f["altitude"] = value + altVoo
+                    f["height"] = altVoo
                     pontos_layer.updateFeature(f)
             pontos_layer.commitChanges()
 
@@ -331,19 +331,18 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
         pontos_reproj = reprojeta_camada_WGS84(pontos_layer, crs_wgs, transformador)
 
+        # Point para PointZ
         if camadaMDE:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
+            pontos_reproj = pontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj)
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
+            simbologiaPontos(pontos_reproj)
+            
+            QgsProject.instance().addMapLayer(pontos_reproj)
 
-        # ===== Rotulagem e simbologia =====
-        simbologiaPontos(pontos_reproj)
-
-        # ===== Mostra a camada Pontos de Fotos criada =====
-        QgsProject.instance().addMapLayer(pontos_reproj)
-
-
-                # ===== Camada de linhas unindo os pontos de cada linha de voo =====
+        # ===== Camada de linhas unindo os pontos de cada linha de voo =====
         linhas_voo_layer = QgsVectorLayer(
             f'LineString?crs={crs.authid()}',
             'Flight Lines',
@@ -396,7 +395,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, H, gimbalAng, terrain, n_linhas)
+            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, altVoo, gimbalAng, terrain, n_linhas)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:

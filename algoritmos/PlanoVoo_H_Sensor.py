@@ -645,14 +645,14 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         # Point para PointZ
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
-            pontos_reproj = pontos3D(pontos_reproj, z_field="altitude")
+            pontos_reproj = pontos3D(pontos_reproj)
             simbologiaPontos3D(pontos_reproj)
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)
             
             QgsProject.instance().addMapLayer(pontos_reproj)
-
+        
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
 

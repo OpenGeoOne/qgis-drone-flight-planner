@@ -606,7 +606,7 @@ def removeLayersReproj(txtFinal):
 def arredondar_para_cima(x, pot):
     return math.ceil(x * 10**pot) / 10**pot
 
-def pontos3D(layer, z_field):
+def pontos3D(layer):
    crs = layer.crs().authid()
    pointz_layer = QgsVectorLayer(f"PointZ?crs={crs}", layer.name(), "memory")
    prov = pointz_layer.dataProvider()
@@ -623,13 +623,13 @@ def pontos3D(layer, z_field):
    feats_out = []
 
    for feat in layer.getFeatures():
-      alt = feat["altitude"]
-      h = feat["height"]
+      alt = feat["altitude"] if feat["altitude"] is not None else 0.0 # Voos Verticais
+      h   = feat["height"]
 
-      if alt is None or h is None:
-         continue
+      alt = float(alt) if alt not in (None, '') else 0.0
+      h   = float(h)   if h   not in (None, '') else 0.0
 
-      z = float(alt) + float(h)
+      z = alt + h
 
       pt = feat.geometry().asPoint()
       geomz = QgsGeometry.fromPoint(QgsPoint(pt.x(), pt.y(), z))
@@ -663,35 +663,6 @@ def simbologiaPontos3D(layer):
 
    simbologiaPontos(layer)
 
-
-   """
-   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
-   renderer = QgsSingleSymbolRenderer(simbolo)
-   layer.setRenderer(renderer)
-
-   # Rótulos
-   settings = QgsPalLayerSettings()
-   settings.fieldName = "id"
-   settings.isExpression = False
-   settings.enabled = True
-   settings.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
-
-   textoF = QgsTextFormat()
-   textoF.setFont(QFont("Arial", 10, QFont.Bold))
-   textoF.setSize(10)
-   textoF.setColor(QColor(0, 0, 255))
-
-   bufferS = QgsTextBufferSettings()
-   bufferS.setEnabled(True)
-   bufferS.setSize(1)
-   bufferS.setColor(QColor("white"))
-
-   textoF.setBuffer(bufferS)
-   settings.setFormat(textoF)
-
-   layer.setLabelsEnabled(True)
-   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-   """
    # Atualizações
    layer.trigger3DUpdate()
    layer.triggerRepaint() 
