@@ -22,12 +22,27 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, calculaDistancia_Linha_Ponto, removeLayersReproj, pontos3D
 from ..images.Imgs import *
 import processing
 import os
 import math
 import numpy as np
+
+from .Funcs import (
+    gerar_CSV,
+    set_Z_value,
+    reprojeta_camada_WGS84,
+    simbologiaLinhaVoo,
+    simbologiaLinhaVoo3D,
+    pontos3D,
+    simbologiaPontos,
+    simbologiaPontos3D,
+    verificarCRS,
+    loadParametros,
+    saveParametros,
+    calculaDistancia_Linha_Ponto,
+    removeLayersReproj
+)
 
 class PlanoVoo_V_F(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -176,7 +191,6 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
         transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
         # ===============================================================================
-
 
         # =============================================================================================
         # ===== Criar a camada Pontos de Fotos ========================================================
@@ -340,7 +354,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         linha_voo_reproj = set_Z_value(linha_voo_reproj, z_field="height")
 
         # Configurar simbologia
-        simbologiaLinhaVoo('VC', linha_voo_reproj)
+        simbologiaLinhaVoo3D(linha_voo_reproj)
 
         # ===== LINHA VOO =================================
         QgsProject.instance().addMapLayer(linha_voo_reproj)

@@ -21,8 +21,9 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 
 from qgis._3d import (
-    QgsPoint3DSymbol,
     QgsVectorLayer3DRenderer,
+    QgsLine3DSymbol,
+    QgsPoint3DSymbol,
     QgsPhongMaterialSettings,
     Qgs3DTypes
 )
@@ -646,7 +647,7 @@ def pontos3D(layer):
    QgsProject.instance().addMapLayer(pointz_layer)
 
    return pointz_layer
-
+          
 def simbologiaPontos3D(layer):
    symbol3d = QgsPoint3DSymbol()
    symbol3d.setShape(QgsPoint3DSymbol.Cube)
@@ -668,4 +669,82 @@ def simbologiaPontos3D(layer):
    layer.triggerRepaint() 
 
    return
-             
+
+def linhas3D(linha_base_geom, alturas, crs, crs_wgs, transformador):
+    # Criar camada Linha de Voo 3D
+    linhas_layer = QgsVectorLayer(
+        'LineStringZ?crs=' + crs.authid(),
+        'Flight Line',
+        'memory'
+    )
+    provider = linhas_layer.dataProvider()
+
+    # Campos
+    campos = QgsFields()
+    campos.append(QgsField("id", QVariant.Int))
+    campos.append(QgsField("height", QVariant.Double))
+    provider.addAttributes(campos)
+    linhas_layer.updateFields()
+
+    linhas_layer.startEditing()
+
+    features = []
+    linha_id = 1
+
+    # Coordenadas da linha base (2D)
+    coords_base = linha_base_geom.asPolyline()
+
+    for altura in alturas:
+        # Criar pontos com Z
+        coords_z = [QgsPoint(pt.x(), pt.y(), float(altura)) for pt in coords_base]
+
+        geom_z = QgsGeometry.fromPolyline(coords_z)
+
+        feat = QgsFeature()
+        feat.setGeometry(geom_z)
+        feat.setAttributes([linha_id, float(altura)])
+
+        features.append(feat)
+        linha_id += 1
+
+    provider.addFeatures(features)
+
+    linhas_layer.commitChanges()
+    linhas_layer.updateExtents()
+
+    # ===== Reprojetar para WGS84 =========================================
+    linhas_reproj = reprojeta_camada_WGS84(
+        linhas_layer,
+        crs_wgs,
+        transformador
+    )
+
+    # Garantir LineStringZ
+    linhas_reproj = set_Z_value(linhas_reproj, z_field="height")
+
+    return linhas_reproj
+
+def simbologiaLinhaVoo3D(layer):
+    if not layer or layer.geometryType() != QgsWkbTypes.LineGeometry:
+        return
+
+    renderer3d = QgsVectorLayer3DRenderer()
+
+    symbol3d = QgsLine3DSymbol()
+    symbol3d.setWidth(0.6)
+    symbol3d.setAltitudeClamping(Qgs3DTypes.AltClampAbsolute)
+
+    material = QgsPhongMaterialSettings()
+    material.setDiffuse(QColor(255, 0, 0))
+    material.setAmbient(QColor(120, 0, 0))
+    material.setSpecular(QColor(255, 255, 255))
+    material.setShininess(20)
+
+    symbol3d.setMaterialSettings(material)
+
+    renderer3d.setSymbol(symbol3d)
+    layer.setRenderer3D(renderer3d)
+
+    layer.trigger3DUpdate()
+    
+    return
