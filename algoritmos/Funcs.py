@@ -650,15 +650,19 @@ def pontos3D(layer):
           
 def simbologiaPontos3D(layer):
    symbol3d = QgsPoint3DSymbol()
-   symbol3d.setShape(QgsPoint3DSymbol.Cube)
-
-   # Altitude absoluta (não gruda no terreno)
+   # Forma = esfera
+   symbol3d.setShape(QgsPoint3DSymbol.Sphere)
+   # Definir propriedades da esfera
+   props = {
+      "radius": 0.8   # em unidades da cena (metros, se o projeto estiver em metros)
+   }
+   symbol3d.setShapeProperties(props)
+   # Altitude absoluta
    symbol3d.setAltitudeClamping(Qgs3DTypes.AltClampAbsolute)
-
    material = QgsPhongMaterialSettings()
-   material.setDiffuse(QColor(0, 0, 255))
+   material.setDiffuse(QColor(122, 122, 122))
+   material.setAmbient(QColor(30, 60, 255))
    symbol3d.setMaterialSettings(material)
-
    renderer3d = QgsVectorLayer3DRenderer(symbol3d)
    layer.setRenderer3D(renderer3d)
 
