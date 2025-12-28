@@ -363,7 +363,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj, "VC")
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)

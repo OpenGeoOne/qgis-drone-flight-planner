@@ -354,7 +354,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         linha_voo_reproj = set_Z_value(linha_voo_reproj, z_field="height")
 
         # Configurar simbologia
-        simbologiaLinhaVoo3D(linha_voo_reproj)
+        simbologiaLinhaVoo3D(linha_voo_reproj, "VF")
 
         # ===== LINHA VOO =================================
         QgsProject.instance().addMapLayer(linha_voo_reproj)
