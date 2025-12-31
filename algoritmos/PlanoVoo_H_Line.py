@@ -335,7 +335,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         if camadaMDE:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
             pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj, "VH_Line")
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)

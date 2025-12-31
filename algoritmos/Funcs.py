@@ -682,5 +682,3 @@ def simbologiaPontos3D(layer, tipoVoo):
    layer.triggerRepaint() 
 
    return
-
-

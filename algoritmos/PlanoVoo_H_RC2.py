@@ -618,7 +618,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
             pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj, "VH_RC2")
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)
