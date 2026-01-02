@@ -32,8 +32,6 @@ from .Funcs import (
     gerar_CSV,
     set_Z_value,
     reprojeta_camada_WGS84,
-    simbologiaLinhaVoo,
-    simbologiaLinhaVoo3D,
     pontos3D,
     simbologiaPontos,
     simbologiaPontos3D,
@@ -297,7 +295,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj, "VF")
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)
@@ -352,9 +350,6 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
 
         # LineString paraLineStringZ
         linha_voo_reproj = set_Z_value(linha_voo_reproj, z_field="height")
-
-        # Configurar simbologia
-        simbologiaLinhaVoo3D(linha_voo_reproj)
 
         # ===== LINHA VOO =================================
         QgsProject.instance().addMapLayer(linha_voo_reproj)

@@ -646,7 +646,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         if param_kml == 'absolute':
             pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
             pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj)
+            simbologiaPontos3D(pontos_reproj, "VH_Sensor")
         else:
             pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
             simbologiaPontos(pontos_reproj)
