@@ -658,7 +658,7 @@ def simbologiaPontos3D(layer):
    }
    symbol3d.setShapeProperties(props)
    # Altitude absoluta
-   symbol3d.setAltitudeClamping(Qgs3DTypes.AltClampAbsolute)
+   symbol3d.setAltitudeClamping(Qgis.AltitudeClamping.Absolute)
    material = QgsPhongMaterialSettings()
    material.setDiffuse(QColor(122, 122, 122))
    material.setAmbient(QColor(30, 60, 255))
@@ -736,7 +736,7 @@ def simbologiaLinhaVoo3D(layer):
 
     symbol3d = QgsLine3DSymbol()
     symbol3d.setWidth(0.6)
-    symbol3d.setAltitudeClamping(Qgs3DTypes.AltClampAbsolute)
+    symbol3d.setAltitudeClamping(Qgis.AltitudeClamping.Absolute)
 
     material = QgsPhongMaterialSettings()
     material.setDiffuse(QColor(255, 0, 0))
