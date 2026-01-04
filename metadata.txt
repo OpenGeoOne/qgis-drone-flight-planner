@@ -3,7 +3,7 @@ name=GeoFlight Planner
 qgisMinimumVersion=3.0
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
 version=3.0.0
-author=Prof Cazaroli, Leandro França, Ilton Freitas
+author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
 email=suporteo@geoone.com.br
 
 about=A QGIS plugin for precise drone flight planning, designed for photogrammetry, 3D inspections, and building facade mapping. It includes tools for terrain-following flights, circular paths around structures, and vertical facade mapping, generating CSV files compatible with Litchi or other flight apps and 2 QGIS Layers: Flight Line and Photos Points.
