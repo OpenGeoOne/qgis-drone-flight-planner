@@ -648,14 +648,19 @@ def pontos3D(layer):
 
    return pointz_layer
           
-def simbologiaPontos3D(layer):
-   symbol3d = QgsPoint3DSymbol()
-   # Forma = esfera
+def simbologiaPontos3D(layer, tipoVoo):
+   symbol3d = QgsPoint3DSymbol() # Forma = esfera
    symbol3d.setShape(QgsPoint3DSymbol.Sphere)
-   # Definir propriedades da esfera
-   props = {
-      "radius": 0.8   # em unidades da cena (metros, se o projeto estiver em metros)
-   }
+    
+   if tipoVoo == "VF" or tipoVoo == "VC":
+      props = {
+         "radius": 0.8   # em unidades da cena (metros, se o projeto estiver em metros)
+      }
+   else:
+      props = {
+         "radius": 2.0
+      }
+
    symbol3d.setShapeProperties(props)
    # Altitude absoluta
    symbol3d.setAltitudeClamping(Qgis.AltitudeClamping.Absolute)
