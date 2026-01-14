@@ -383,7 +383,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         return 'Flight_Plan_V_F'
 
     def displayName(self):
-        return self.tr('1.Facade')
+        return self.tr('1. Facade')
 
     def group(self):
         return 'Vertical Flight'
@@ -414,16 +414,6 @@ It enables the planning of a precise vertical trajectory with appropriate overla
 <p><span>The outputs are <b>CSV</b> file compatible with the <b>Litchi app</b>. and 2 Layers - <b>Flight Line</b> and <b>Photos Points</b>.
 <p>It can also be used with other flight applications, utilizing the 2 genereted Layers for flight lines and waypoints.</p>
 <p><b>
-<p><b>Learn more:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-   <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
-   <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5681">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
-</ul>
-<p><b>Tips:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-  <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a><o:p></o:p></li>
-  <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a><o:p></o:p></span></li>
-</ul>
 """
 
     figura = 'images/Facade.jpg'
@@ -433,6 +423,11 @@ It enables the planning of a precise vertical trajectory with appropriate overla
                       <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +'''">
                       </div>
                       <div align="right">
+                      <p><b>Learn more:</b><o:p></o:p></p>
+                        <ul style="margin-top: 0cm;" type="disc">
+                        <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
+                        <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5681">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
+                        </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
                       </p>
