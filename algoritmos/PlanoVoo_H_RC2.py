@@ -654,7 +654,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_RC2'
 
     def displayName(self):
-        return self.tr('3.Following terrain - RC2 Controller')
+        return self.tr('3. Following terrain - RC2 Controller')
 
     def group(self):
         return 'Horizontal Flight'
@@ -677,16 +677,6 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
     texto = """This tool allows for horizontal flight planning for drone photogrammetry, following terrain elevation based on the specified flight altitude and the lateral spacing between flight lines.</b>
 <p>It generates a <b>CSV</b> file compatible with the <b>Litchi app</b> and two layers: <b>Flight Line</b> and <b>Photos Points</b>.</p>
 <p>The CSV file can then be used with <b>Litchi Utilities</b> to generate a <b>KMZ</b> file for use in the <b>DJI Fly</b> app — extremely useful for drones equipped with the <b>RC2 Controller</b>, such as the <b>Mini 4 e 5 Pro, Air 3, Air 3S</b>, and <b>Mavic 3</b>.</p>
-<p><b>Learn more:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-   <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
-   <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5797">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
-</ul>
-<p><b>Tips:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-  <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a><o:p></o:p></li>
-  <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a><o:p></o:p></span></li>
-</ul>
 """
 
     figura2 = 'images/Terrain_Follow.jpg'
@@ -696,6 +686,11 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
                       <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
                       </div>
                       <div align="right">
+                      <p><b>Learn more:</b><o:p></o:p></p>
+                        <ul style="margin-top: 0cm;" type="disc">
+                        <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
+                        <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5797">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
+                        </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
                       </p>
