@@ -22,7 +22,7 @@ import json
 from qgis.core import QgsSettings
 
 from qgis.PyQt.QtWidgets import (QDialog, QScrollArea, QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
-    QGroupBox, QLabel, QComboBox, QPushButton, QDoubleSpinBox, QSpinBox, QMessageBox, QTableWidget, QTableWidgetItem)
+    QGroupBox, QLabel, QComboBox, QPushButton, QDoubleSpinBox, QSpinBox, QMessageBox, QTableWidget, QTableWidgetItem, QCheckBox)
 from qgis.gui import QgsCollapsibleGroupBox
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtCore import QUrl, Qt
@@ -84,6 +84,29 @@ def calculate_overlap(altitude_m, sensor_width_mm, sensor_height_mm, focal_mm, s
     side_overlap = max(0.0, 1 - spacing_side / footprint_w) * 100.0 if footprint_w > 0 else 0.0
 
     return front_overlap, side_overlap
+
+def calculate_speed_limit_blur(gsd_cm, shutter_speed_inv, blur_limit_px):
+    if gsd_cm <= 0 or shutter_speed_inv <= 0:
+        return 0.0
+    # Formula: Speed (m/s) = (GSD (cm/px) * BlurLimit (px) * ShutterInv) / 100
+    return (gsd_cm * blur_limit_px * shutter_speed_inv) / 100.0
+
+def calculate_speed_limit_interval(altitude_m, sensor_height_mm, focal_mm, front_overlap_pct, min_interval_s):
+    if altitude_m <= 0 or focal_mm <= 0 or min_interval_s <= 0:
+        return 0.0
+    
+    footprint_h = altitude_m * sensor_height_mm / focal_mm
+    distance_between_photos = footprint_h * (1 - front_overlap_pct / 100.0)
+    
+    # Formula: Speed (m/s) = Distance (m) / Interval (s)
+    # Formula: Speed (m/s) = Distance (m) / Interval (s)
+    return distance_between_photos / min_interval_s
+
+def calculate_speed_limit_ppk(gnss_freq_hz, max_dist_epoch_m):
+    if gnss_freq_hz <= 0 or max_dist_epoch_m <= 0:
+        return 0.0
+    # Formula: Speed (m/s) = Frequency (Hz) * Distance (m)
+    return gnss_freq_hz * max_dist_epoch_m
 
 class Calculator_Dialog(QDialog):
     def __init__(self, iface):
@@ -218,7 +241,103 @@ class Calculator_Dialog(QDialog):
         overlap_form.addRow("Side Line Spacing (1 to 100 m):", self.spacingSide)
         overlap_form.addRow("Result:", self.overlapResult)
         overlap_form.addRow(overlap_btn)
+        overlap_form.addRow(overlap_btn)
         container_layout.addWidget(overlap_box)
+
+        # Ideal Speed Section
+        self.altitudeSpeed = QDoubleSpinBox()
+        self.altitudeSpeed.setRange(2.5, 500)
+        self.altitudeSpeed.setValue(100)
+        
+        self.shutterSpeedCombo = QComboBox()
+        self.shutter_speeds = ["1/500", "1/640", "1/800", "1/1000", "1/1250", "1/1600", "1/2000", "1/3000", "1/4000", "1/8000"]
+        self.shutterSpeedCombo.addItems(self.shutter_speeds)
+        self.shutterSpeedCombo.setCurrentIndex(3) # Default 1/1000
+        
+        self.frontOverlapSpeed = QSpinBox()
+        self.frontOverlapSpeed.setRange(50, 95)
+        self.frontOverlapSpeed.setValue(80)
+        
+        self.minInterval = QDoubleSpinBox()
+        self.minInterval.setRange(0.5, 10.0)
+        self.minInterval.setValue(2.0)
+        self.minInterval.setSingleStep(0.1)
+        
+        self.blurLimit = QDoubleSpinBox()
+        self.blurLimit.setRange(0.1, 5.0)
+        self.blurLimit.setValue(0.5)
+        self.blurLimit.setSingleStep(0.1)
+        
+        self.safetyFactor = QDoubleSpinBox()
+        self.safetyFactor.setRange(0.5, 1.0)
+        self.safetyFactor.setValue(0.7)
+        self.safetyFactor.setSingleStep(0.05)
+        self.safetyFactor.setToolTip("Safety Factor (Operational Margin)\n\n"
+                                     "Reduces the theoretical maximum flight speed to account for real-world conditions \n"
+                                     "such as wind, drone pitch, terrain variation, camera timing delays, and GNSS interpolation errors.\n\n"
+                                     "Recommended value: 0.7 (70%).")
+        
+        self.maxSpeedBlurResult = QLabel("Max Speed (Motion Blur): --")
+        self.maxSpeedIntervalResult = QLabel("Max Speed (Write Interval): --")
+        self.recommendedSpeedResult = QLabel("<b>RECOMMENDED SPEED: --</b>")
+        
+        # PPK Section (Hidden by default)
+        self.ppkBox = QCheckBox("Enable PPK constraints")
+        self.ppkBox.setToolTip("PPK Speed Constraint\n\n"
+                               "When enabled, the flight speed is limited by GNSS trajectory sampling.\n"
+                               "In PPK workflows, camera positions are interpolated from GNSS epochs.\n"
+                               "If the drone travels too far between epochs, positional accuracy degrades.\n"
+                               "This constraint ensures reliable trajectory interpolation and consistent georeferencing.")
+        self.ppkBox.setChecked(False)
+        self.ppkBox.toggled.connect(self._toggle_ppk_inputs)
+
+        self.gnssFreq = QSpinBox()
+        self.gnssFreq.setRange(1, 50)
+        self.gnssFreq.setValue(10)
+        self.gnssFreq.setSuffix(" Hz")
+        self.gnssFreq.setVisible(False)
+        
+        self.maxDistEpoch = QDoubleSpinBox()
+        self.maxDistEpoch.setRange(0.1, 2.0)
+        self.maxDistEpoch.setValue(0.5)
+        self.maxDistEpoch.setSuffix(" m")
+        self.maxDistEpoch.setSingleStep(0.1)
+        self.maxDistEpoch.setVisible(False)
+        
+        self.lblGnssFreq = QLabel("GNSS Frequency (Hz):")
+        self.lblGnssFreq.setVisible(False)
+        
+        self.lblMaxDistEpoch = QLabel("Max Distance per Epoch (m):")
+        self.lblMaxDistEpoch.setVisible(False)
+        
+        self.maxSpeedPPKResult = QLabel("Max Speed (PPK): --")
+        self.maxSpeedPPKResult.setVisible(False)
+
+        speed_btn = QPushButton("Calculate Optimal Speed")
+        speed_btn.clicked.connect(self.calculate_ideal_speed)
+        
+        speed_box = QgsCollapsibleGroupBox("Ideal Flight Speed Calculator")
+        speed_box.setCollapsed(True)
+        speed_form = QFormLayout(speed_box)
+        
+        speed_form.addRow("Flight Altitude (m):", self.altitudeSpeed)
+        speed_form.addRow("Shutter Speed (s):", self.shutterSpeedCombo)
+        speed_form.addRow("Frontal Overlap (%):", self.frontOverlapSpeed)
+        speed_form.addRow("Min Shooting Interval (s):", self.minInterval)
+        speed_form.addRow("Motion Blur Limit (px):", self.blurLimit)
+        speed_form.addRow("Safety Factor (0.5-1.0):", self.safetyFactor)
+        
+        speed_form.addRow(self.ppkBox)
+        speed_form.addRow(self.lblGnssFreq, self.gnssFreq)
+        speed_form.addRow(self.lblMaxDistEpoch, self.maxDistEpoch)
+        
+        speed_form.addRow(self.maxSpeedBlurResult)
+        speed_form.addRow(self.maxSpeedIntervalResult)
+        speed_form.addRow(self.maxSpeedPPKResult)
+        speed_form.addRow(self.recommendedSpeedResult)
+        speed_form.addRow(speed_btn)
+        
+        container_layout.addWidget(speed_box)
 
         # Help Button
         help_btn = QPushButton("User Guide")
@@ -492,6 +611,83 @@ class Calculator_Dialog(QDialog):
             self.overlapResult.setText(f"Front Photos = {front:.1f} %; Side Lines = {side:.1f} %")
         except Exception as e:
             QMessageBox.critical(self, "Calculation Error", str(e))
+
+
+    def calculate_ideal_speed(self):
+        specs = self._get_specs()
+        if not specs:
+            QMessageBox.warning(self, "Error", "Please select a valid drone model.")
+            return
+
+        try:
+            # 1. Get Inputs
+            alt = self.altitudeSpeed.value()
+            shutter_str = self.shutterSpeedCombo.currentText()
+            shutter_inv = float(shutter_str.split('/')[1]) # e.g., "1/1000" -> 1000.0
+            overlap_pct = self.frontOverlapSpeed.value()
+            interval_s = self.minInterval.value()
+            blur_px = self.blurLimit.value()
+            safety = self.safetyFactor.value()
+            
+            # PPK Inputs
+            is_ppk = self.ppkBox.isChecked()
+            gnss_freq = self.gnssFreq.value()
+            dist_epoch = self.maxDistEpoch.value()
+            
+            # 2. Calculate GSD first (needed for blur)
+            gsd_cm = calculate_gsd_by_sensor(
+                alt,
+                float(specs["sensor_width"]),
+                float(specs["sensor_height"]),
+                int(specs["image_width"]),
+                int(specs["image_height"]),
+                float(specs["focal_length"])
+            )
+            
+            # 3. Calculate Limits
+            speed_blur = calculate_speed_limit_blur(gsd_cm, shutter_inv, blur_px)
+            speed_interval = calculate_speed_limit_interval(
+                alt,
+                float(specs["sensor_height"]),
+                float(specs["focal_length"]),
+                overlap_pct,
+                interval_s
+            )
+            
+            speed_ppk = float('inf')
+            if is_ppk:
+                speed_ppk = calculate_speed_limit_ppk(gnss_freq, dist_epoch)
+            
+            # 4. Determine Recommended Speed
+            min_speed = min(speed_blur, speed_interval)
+            
+            if is_ppk:
+                min_speed = min(min_speed, speed_ppk)
+                
+            rec_speed = min_speed * safety
+            rec_speed_kmh = rec_speed * 3.6
+            
+            # 5. Update UI
+            self.maxSpeedBlurResult.setText(f"Max Speed (Motion Blur): {speed_blur:.2f} m/s")
+            self.maxSpeedIntervalResult.setText(f"Max Speed (Write Interval): {speed_interval:.2f} m/s")
+            
+            if is_ppk:
+                self.maxSpeedPPKResult.setText(f"Max Speed (PPK): {speed_ppk:.2f} m/s")
+                self.maxSpeedPPKResult.setVisible(True)
+            else:
+                self.maxSpeedPPKResult.setVisible(False)
+            
+            self.recommendedSpeedResult.setText(f"<b>RECOMMENDED SPEED: {rec_speed:.1f} m/s ({rec_speed_kmh:.1f} km/h)</b>")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Calculation Error", str(e))
+
+    def _toggle_ppk_inputs(self, visible):
+        self.gnssFreq.setVisible(visible)
+        self.maxDistEpoch.setVisible(visible)
+        self.lblGnssFreq.setVisible(visible)
+        self.lblMaxDistEpoch.setVisible(visible)
+        self.maxSpeedPPKResult.setVisible(visible)
 
 
     def open_help(self):
