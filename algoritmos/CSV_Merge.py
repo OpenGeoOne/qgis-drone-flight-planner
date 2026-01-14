@@ -129,7 +129,7 @@ class CSV_Merge(QgsProcessingAlgorithm):
         return 'MergeCSV'.lower()
 
     def displayName(self):
-        return self.tr('2.Merge CSV files')
+        return self.tr('2. Merge CSV files')
 
     def group(self):
         return 'CSV Tools'
@@ -149,35 +149,33 @@ class CSV_Merge(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/CSV.png'))
     
-    figura2 = 'images/Terrain_Follow.jpg'
+    figura2 = 'images/csv_merge.jpg'
 
     def shortHelpString(self):
-        texto = f"""
-        <p>
-        This tool optimizes the flight plan by merging CSV files. The algorithm ......
-        </p>
-
-        <p> The result is a leaner flight plan with ... .</p>
-        <p>It generates a new <b>CSV</b> with ... the <b>Litchi</b> app.</p>
-        <p>It can also be used with other flight applications, utilizing the generated layers for flight lines and waypoints.</p>
-
-        <p><b>Learn more:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
-            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
-        </ul>
-
-        <p><b>Tips:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a></li>
-            <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a></li>
-        </ul>
+        texto = f"""This tool allows you to <b>merge two flight plan CSV files into a single mission</b>,
+    enabling them to be executed <b>sequentially in one continuous flight</b>.
+    <p>
+    It is especially useful for <b>mapping missions</b>, where one area is flown first
+    and the drone continues directly to the next area <b>without returning to the takeoff point</b>.
+    </p>
+    <p>
+    By combining multiple flight plans into a single CSV, you can <b>optimize flight time</b>,
+    <b>reduce unnecessary maneuvers</b>, and <b>save battery</b>, making large surveys more efficient.
+    </p>
+    <p>
+    The merged CSV also can be loaded into QGIS as a <b>point layer</b> for quick visual validation.
+    </p>
         """
 
         corpo = '''<div align="center">
                       <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
                       </div>
                       <div align="right">
+                       <p><b>Learn more:</b></p>
+                        <ul>
+                            <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
+                            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
+                        </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli, Leandro França and Ilton Freitas</b>
                       </p>
