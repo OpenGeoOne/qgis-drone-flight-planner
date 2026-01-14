@@ -782,7 +782,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         return 'SimplifyWaypoints'.lower()
 
     def displayName(self):
-        return self.tr('1.Simplify Waypoints')
+        return self.tr('1. Simplify Waypoints')
 
     def group(self):
         return 'CSV Tools'
@@ -802,35 +802,27 @@ class CSV_Simplify(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/CSV.png'))
     
-    figura2 = 'images/Terrain_Follow.jpg'
+    figura2 = 'images/csv_simplipy.jpg'
 
     def shortHelpString(self):
         texto = f"""
         <p>
         This tool optimizes the flight plan by reducing the number of waypoints through a three-dimensional tolerance relative to the original flight line. The algorithm preserves the photo spacing defined during the planning stage, ensuring that the <strong>number of photos and final coverage remain unchanged</strong>.
         </p>
-
         <p> The result is a leaner flight plan with fewer waypoints, without compromising photogrammetric quality. This approach is particularly useful for drones with <em>limitations on the maximum number of waypoints</em> — such as the Phantom 4 and older DJI Mini models — while also making mission execution more stable, reducing the risk of <em>freezes or slowdowns</em> during the flight.</p>
         <p>It generates a new <b>CSV</b> with simplified flight plan witch compatible with the <b>Litchi</b> app.</p>
         <p>It can also be used with other flight applications, utilizing the generated layers for flight lines and waypoints.</p>
-
-        <p><b>Learn more:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
-            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
-        </ul>
-
-        <p><b>Tips:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a></li>
-            <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a></li>
-        </ul>
         """
 
         corpo = '''<div align="center">
                       <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
                       </div>
                       <div align="right">
+                      <p><b>Learn more:</b></p>
+                        <ul>
+                            <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
+                            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
+                        </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli, Leandro França and Ilton Freitas</b>
                       </p>
