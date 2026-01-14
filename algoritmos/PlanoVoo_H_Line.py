@@ -413,7 +413,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_Line'
 
     def displayName(self):
-        return self.tr('4.Following terrain - Line')
+        return self.tr('4. Following terrain - Line')
 
     def group(self):
         return 'Horizontal Flight'
@@ -428,33 +428,35 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         return PlanoVoo_H_Line()
 
     def tags(self):
-        return self.tr('Flight Plan,Measure,Topography,Plano voo,Plano de voo,voo,drone,GeoOne').split(',')
+        return self.tr('Flight Plan,Measure,Topography,Plano voo,Plano de voo,voo,drone,GeoOne,Linear,Track,Road,Line,Channel').split(',')
 
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Horizontal.png'))
 
-    texto = """This tool enables drone flight planning for photogrammetry, following terrain elevations (optionally), and lateral and frontal overlaps are entered. And you can also choose the photo interval by <b>distance</b> or by <b>time</b>.</b><br>
-It generates <b>CSV</b> file compatible with the <b>Litchi app</b> and 2 Layers - <b>Flight Line</b> and <b>Photos Points</b>.
-<p>It can also be used with other flight applications, utilizing the 2 genereted Layers for flight lines and waypoints.</p>
-<p><b>Learn more:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-   <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
-   <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5680">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
-</ul>
-<p><b>Tips:</b><o:p></o:p></p>
-<ul style="margin-top: 0cm;" type="disc">
-  <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a><o:p></o:p></li>
-  <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a><o:p></o:p></span></li>
-</ul>
+    texto = """This tool generates a <b>horizontal linear flight plan</b> from a single <b>axis line</b>, creating <b>2 to 5 parallel flight routes</b> with automatically placed photo waypoints.
+<p>
+You define the <b>lateral offset</b>, <b>front photo spacing</b>, flight height, speed and gimbal angle, and the tool builds a <b>continuous mission</b> along the line.
+</p>
+<p>
+When a <b>DEM</b> is provided, the flight can <b>follow the terrain</b>, adjusting waypoint altitudes to maintain a consistent height above ground.
+</p>
+<p>
+The result is a <b>Litchi-compatible CSV</b> and optional flight line and waypoint layers in QGIS, ideal for mapping roads, corridors and other linear features.
+</p>
 """
 
-    figura2 = 'images/Terrain_Follow.jpg'
+    figura2 = 'images/linear_flight.jpg'
 
     def shortHelpString(self):
         corpo = '''<div align="center">
                       <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
                       </div>
                       <div align="right">
+                      <p><b>Learn more:</b><o:p></o:p></p>
+                        <ul style="margin-top: 0cm;" type="disc">
+                        <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
+                        <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5680">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
+                        </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
                       </p>
