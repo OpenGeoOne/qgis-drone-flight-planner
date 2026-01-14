@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Documentação: Calculadora de Velocidade Ideal de Voo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+
+        h3 {
+            color: #2980b9;
+            margin-top: 20px;
+        }
+
+        .intro {
+            font-size: 1.1em;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 5px solid #3498db;
+        }
+
+        .parameter {
+            margin-bottom: 20px;
+        }
+
+        .param-name {
+            font-weight: bold;
+            color: #e74c3c;
+            font-size: 1.05em;
+        }
+
+        .param-desc {
+            margin-left: 20px;
+        }
+
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #c7254e;
+        }
+
+        .formula-box {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #bce8f1;
+            margin: 10px 0;
+        }
+
+        .formula-title {
+            font-weight: bold;
+            color: #31708f;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .math-block {
+            font-family: 'Times New Roman', serif;
+            font-size: 1.2em;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .usage-steps {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ffeeba;
+        }
+
+        .usage-steps ol {
+            margin-left: 20px;
+        }
+
+        .img-placeholder {
+            background-color: #ddd;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            border: 2px dashed #999;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Calculadora de Velocidade Ideal de Voo</h1>
+
+    <div class="intro">
+        <p>A <strong>Calculadora de Velocidade Ideal de Voo</strong> é uma ferramenta avançada projetada para determinar
+            a velocidade máxima segura para missões de mapeamento com drones. Diferente de calculadoras simples que
+            consideram apenas o motion blur, esta ferramenta integra três restrições físicas fundamentais:
+            <strong>qualidade óptica</strong> (Motion Blur), <strong>capacidade de escrita</strong> (Intervalo de
+            Disparo) e <strong>precisão geodésica</strong> (PPK/GNSS).</p>
+    </div>
+
+    <h2>1. O Que a Ferramenta Calcula?</h2>
+    <p>A ferramenta analisa os parâmetros da missão e do sensor para calcular três limites de velocidade independentes
+        e, em seguida, recomenda uma velocidade operacional segura.</p>
+
+    <div class="formula-box">
+        <span class="formula-title">Lógica de Decisão:</span>
+        <p>A velocidade recomendada é derivada da restrição mais crítica (o "gargalo" da operação), aplicada a um Fator
+            de Segurança.</p>
+        <div class="math-block">
+            V<sub>recomendada</sub> = Fator de Segurança × min(V<sub>blur</sub>, V<sub>intervalo</sub>, V<sub>ppk</sub>)
+        </div>
+    </div>
+
+    <h2>2. Metodologia de Cálculo (As Fórmulas)</h2>
+
+    <h3>2.1. Limite por Motion Blur (Restrição Óptica)</h3>
+    <p>Calcula a velocidade máxima para garantir que o "arrasto" da imagem durante a exposição não exceda o limite de
+        pixels definido (geralmente &lt; 0.5px ou 1.0px). Isso garante fotos nítidas.</p>
+    <div class="formula-box">
+        <div class="math-block">
+            V<sub>blur</sub> = (GSD × Limite de Blur) / Tempo de Exposição
+        </div>
+        <ul>
+            <li><strong>GSD:</strong> Ground Sample Distance (cm/pix)</li>
+            <li><strong>Limite de Blur:</strong> Tolerância de arrasto (pixels)</li>
+            <li><strong>Tempo de Exposição:</strong> Velocidade do obturador (ex: 1/1000s)</li>
+        </ul>
+    </div>
+
+    <h3>2.2. Limite por Intervalo de Disparo (Restrição de Hardware)</h3>
+    <p>Calcula a velocidade máxima para garantir que o drone não percorra a distância entre fotos mais rápido do que a
+        câmera consegue salvar a imagem (buffer).</p>
+    <div class="formula-box">
+        <div class="math-block">
+            V<sub>intervalo</sub> = Distância entre Fotos / Intervalo Mínimo
+        </div>
+        <ul>
+            <li><strong>Distância entre Fotos:</strong> Calculada baseada na sobreposição frontal e altitude.</li>
+            <li><strong>Intervalo Mínimo:</strong> Tempo mínimo que a câmera leva para tirar e salvar uma foto
+                (segundos).</li>
+        </ul>
+    </div>
+
+    <h3>2.3. Limite por PPK/GNSS (Restrição Geodésica) - Opcional</h3>
+    <p>Calcula a velocidade máxima para garantir que a trajetória GNSS tenha pontos suficientes para uma interpolação
+        precisa no pós-processamento (PPK).</p>
+    <div class="formula-box">
+        <div class="math-block">
+            V<sub>ppk</sub> = Frequência GNSS × Distância Máxima por Época
+        </div>
+        <ul>
+            <li><strong>Frequência GNSS:</strong> Taxa de gravação do GPS (Hz).</li>
+            <li><strong>Distância Máx. por Época:</strong> Espaçamento máximo permitido entre registros de posição
+                (metros).</li>
+        </ul>
+    </div>
+
+    <h2>3. Parâmetros de Entrada (Guia do Usuário)</h2>
+
+    <div class="parameter">
+        <div class="param-name">Flight Altitude (m)</div>
+        <div class="param-desc">Altitude de voo em relação ao solo. Influencia diretamente o GSD (tamanho do pixel no
+            chão) e a distância física entre as fotos.</div>
+    </div>
+
+    <div class="parameter">
+        <div class="param-name">Shutter Speed (s)</div>
+        <div class="param-desc">Tempo de exposição (vel. do obturador). Valores mais rápidos (ex: 1/1000, 1/2000)
+            congelam melhor a imagem, permitindo voar mais rápido sem blur, mas exigem boas condições de iluminação.
+        </div>
+    </div>
+
+    <div class="parameter">
+        <div class="param-name">Frontal Overlap (%)</div>
+        <div class="param-desc">Porcentagem de sobreposição entre fotos consecutivas. Quanto maior a sobreposição, menor
+            a distância entre fotos, obrigando o drone a voar mais devagar para respeitar o intervalo da câmera.</div>
+    </div>
+
+    <div class="parameter">
+        <div class="param-name">Min Shooting Interval (s)</div>
+        <div class="param-desc">O limite físico da câmera. Drones mais antigos precisam de 2.0s a 3.0s. Drones modernos
+            (Mavic 3E) chegam a 0.7s. <strong>Atenção:</strong> Configurar errado aqui causará falhas na captura
+            (buracos na cobertura).</div>
+    </div>
+
+    <div class="parameter">
+        <div class="param-name">Motion Blur Limit (px)</div>
+        <div class="param-desc">Critério de qualidade. Define o quanto você aceita que a imagem "borre".
+            <ul>
+                <li><strong>0.3 - 0.5 px:</strong> Qualidade Premium/Alta precisão.</li>
+                <li><strong>1.0 px:</strong> Padrão aceitável para ortomosaicos gerais.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="parameter">
+        <div class="param-name">Safety Factor (Fator de Segurança)</div>
+        <div class="param-desc">Uma margem de segurança operacional. Reduz a velocidade teórica máxima para compensar:
+            <ul>
+                <li>Vento (arrasto e correções de curso).</li>
+                <li>Variações de terreno (que alteram o GSD real).</li>
+                <li>Latência no disparo da câmera.</li>
+            </ul>
+            <strong>Recomendado: 0.7 (70%).</strong> Isso significa voar a 70% da velocidade limite teórica.
+        </div>
+    </div>
+
+    <h3>Parâmetros PPK (Quando ativado)</h3>
+    <div class="parameter">
+        <div class="param-name">GNSS Frequency (Hz)</div>
+        <div class="param-desc">Quantas vezes por segundo o receptor GNSS grava a posição. (Padrão DJI/Emlid: 10Hz ou
+            5Hz).</div>
+    </div>
+    <div class="parameter">
+        <div class="param-name">Max Distance per Epoch (m)</div>
+        <div class="param-desc">A distância máxima que o drone pode percorrer entre dois registros de GPS. Para PPK de
+            alta precisão, recomenda-se manter isso baixo (ex: 0.5m) para garantir que a interpolação da posição da
+            câmera seja precisa.</div>
+    </div>
+
+    <h2>4. Como Usar</h2>
+
+    <div class="usage-steps">
+        <ol>
+            <li>Selecione o <strong>Modelo do Drone</strong> no topo da calculadora.</li>
+            <li>Abra a seção <strong>"Ideal Flight Speed Calculator"</strong>.</li>
+            <li>Insira a <strong>Altitude</strong> e a <strong>Sobreposição Frontal</strong> planejada.</li>
+            <li>Defina a <strong>Velocidade do Obturador</strong> que pretende usar (baseado na luz do dia).</li>
+            <li>Insira o <strong>Intervalo Mínimo</strong> da sua câmera (consulte o manual do drone).</li>
+            <li>Se for um voo PPK/RTK, ative a caixa <strong>"Enable PPK constraints"</strong> e verifique a frequência
+                (10Hz padrão).</li>
+            <li>Clique em <strong>"Calculate Optimal Speed"</strong>.</li>
+        </ol>
+    </div>
+
+    <p>O resultado mostrará qual é o fator limitante (Blur, Intervalo ou PPK) e indicará a <strong>VELOCIDADE
+            RECOMENDADA</strong> final, já segura para configurar no seu software de plano de voo (Pilot 2, DroneDeploy,
+        UgCS, etc).</p>
+
+</body>
+
+</html>
