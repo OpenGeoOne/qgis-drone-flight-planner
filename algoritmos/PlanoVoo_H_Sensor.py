@@ -682,7 +682,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_Sensor'
 
     def displayName(self):
-        return self.tr('1.Following terrain - Sensor')
+        return self.tr('1. Following terrain - Sensor')
 
     def group(self):
         return 'Horizontal Flight'
@@ -717,18 +717,6 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         <p>This tool enables drone flight planning for photogrammetry, following terrain elevations (optionally), and calculating lateral and frontal overlaps based on the <b>drone's sensor parameters</b>.</p>
         <p>It generates a <b>CSV</b> file compatible with the <b>Litchi app</b> and two layers: <b>Flight Line</b> and <b>Photo Points</b>.</p>
         <p>It can also be used with other flight applications, utilizing the generated layers for flight lines and waypoints.</p>
-
-        <p><b>Learn more:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
-            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
-        </ul>
-
-        <p><b>Tips:</b></p>
-        <ul>
-            <li><a href="https://geoone.com.br/plano-de-voo-para-drone-com-python/#sensor">Check your drone sensor parameters</a></li>
-            <li><a href="https://geoone.com.br/opentopography-qgis/">Obtain the MDE for the Open Topography plugin</a></li>
-        </ul>
         """
 
         corpo = f'''
@@ -736,6 +724,11 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
             <img src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2)}">
         </div>
         <div align="right">
+            <p><b>Learn more:</b></p>
+            <ul>
+                <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
+                <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
+            </ul>
             <p><b>Autores: Prof Cazaroli & Leandro França</b></p>
             <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
                 <img title="GeoOne" src="data:image/png;base64,{GeoOne}">
