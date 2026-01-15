@@ -174,7 +174,7 @@ class CSV_Merge(QgsProcessingAlgorithm):
                        <p><b>Learn more:</b></p>
                         <ul>
                             <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
-                            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5679">Click here to access the class with all the details about this tool!</a></li>
+                            <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=6027">Click here to access the class with all the details about this tool!</a></li>
                         </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli, Leandro França and Ilton Freitas</b>

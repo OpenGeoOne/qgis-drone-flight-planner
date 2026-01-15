@@ -689,7 +689,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
                       <p><b>Learn more:</b><o:p></o:p></p>
                         <ul style="margin-top: 0cm;" type="disc">
                         <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a><o:p></o:p></li>
-                        <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=5797">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
+                        <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=6030">Click here to access the class with all the details about this tool!</a><o:p></o:p></li>
                         </ul>
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
