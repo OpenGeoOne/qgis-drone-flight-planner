@@ -102,11 +102,28 @@ def calculate_speed_limit_interval(altitude_m, sensor_height_mm, focal_mm, front
     # Formula: Speed (m/s) = Distance (m) / Interval (s)
     return distance_between_photos / min_interval_s
 
-def calculate_speed_limit_ppk(gnss_freq_hz, max_dist_epoch_m):
-    if gnss_freq_hz <= 0 or max_dist_epoch_m <= 0:
+def calculate_speed_limit_ppk(gsd_m: float, sync_error_fraction: float, residual_jitter_ms: float) -> float:
+    """
+    PPK speed limit based on temporal synchronism (residual jitter):
+        v_max_sync = (Δx_max) / (δt)
+    where:
+        Δx_max = sync_error_fraction * GSD
+        δt = residual_jitter_ms / 1000
+    Inputs:
+        gsd_m: GSD in meters
+        sync_error_fraction: fraction of GSD allowed as error due to synchronism (e.g., 0.5)
+        residual_jitter_ms: residual temporal jitter in milliseconds (e.g., 1.0)
+    Returns:
+        v_max_sync in m/s
+    """
+    if gsd_m <= 0 or sync_error_fraction <= 0 or residual_jitter_ms <= 0:
         return 0.0
-    # Formula: Speed (m/s) = Frequency (Hz) * Distance (m)
-    return gnss_freq_hz * max_dist_epoch_m
+
+    dx_max_m = sync_error_fraction * gsd_m
+    dt_s = residual_jitter_ms / 1000.0
+
+    return dx_max_m / dt_s
+
 
 class Calculator_Dialog(QDialog):
     def __init__(self, iface):
@@ -281,36 +298,43 @@ class Calculator_Dialog(QDialog):
         self.maxSpeedIntervalResult = QLabel("Max Speed (Write Interval): --")
         self.recommendedSpeedResult = QLabel("<b>RECOMMENDED SPEED: --</b>")
         
-        # PPK Section (Hidden by default)
-        self.ppkBox = QCheckBox("Enable PPK constraints")
-        self.ppkBox.setToolTip("PPK Speed Constraint\n\n"
-                               "When enabled, the flight speed is limited by GNSS trajectory sampling.\n"
-                               "In PPK workflows, camera positions are interpolated from GNSS epochs.\n"
-                               "If the drone travels too far between epochs, positional accuracy degrades.\n"
-                               "This constraint ensures reliable trajectory interpolation and consistent georeferencing.")
+        # PPK Sync inputs (Hidden by default)
+        self.ppkBox = QCheckBox("Enable PPK synchronism check")
+        self.ppkBox.setToolTip(
+            "PPK Synchronism Check\n\n"
+            "Limits flight speed based on residual temporal synchronism (jitter) between\n"
+            "camera exposure time and GNSS timestamp.\n\n"
+            "v_max_sync = (k * GSD) / dt\n"
+            "k = tolerated fraction of GSD\n"
+            "dt = residual jitter (ms)"
+        )
         self.ppkBox.setChecked(False)
         self.ppkBox.toggled.connect(self._toggle_ppk_inputs)
 
-        self.gnssFreq = QSpinBox()
-        self.gnssFreq.setRange(1, 50)
-        self.gnssFreq.setValue(10)
-        self.gnssFreq.setSuffix(" Hz")
-        self.gnssFreq.setVisible(False)
-        
-        self.maxDistEpoch = QDoubleSpinBox()
-        self.maxDistEpoch.setRange(0.1, 2.0)
-        self.maxDistEpoch.setValue(0.5)
-        self.maxDistEpoch.setSuffix(" m")
-        self.maxDistEpoch.setSingleStep(0.1)
-        self.maxDistEpoch.setVisible(False)
-        
-        self.lblGnssFreq = QLabel("GNSS Frequency (Hz):")
-        self.lblGnssFreq.setVisible(False)
-        
-        self.lblMaxDistEpoch = QLabel("Max Distance per Epoch (m):")
-        self.lblMaxDistEpoch.setVisible(False)
-        
-        self.maxSpeedPPKResult = QLabel("Max Speed (PPK): --")
+        self.syncErrorFraction = QDoubleSpinBox()
+        self.syncErrorFraction.setRange(0.1, 2.0)
+        self.syncErrorFraction.setValue(0.5)
+        self.syncErrorFraction.setSingleStep(0.1)
+        self.syncErrorFraction.setToolTip("Tolerated error due to synchronism as a fraction of GSD.\n"
+                                        "Typical: 0.5 (50% of GSD) for rigorous mapping.")
+        self.syncErrorFraction.setVisible(False)
+
+        self.residualJitterMs = QDoubleSpinBox()
+        self.residualJitterMs.setRange(0.1, 20.0)
+        self.residualJitterMs.setValue(1.0)
+        self.residualJitterMs.setSingleStep(0.1)
+        self.residualJitterMs.setSuffix(" ms")
+        self.residualJitterMs.setToolTip("Residual synchronism jitter (ms) after compensating fixed latency.\n"
+                                        "Typical DJI Enterprise: ~0.5–2.0 ms (use your estimate).")
+        self.residualJitterMs.setVisible(False)
+
+        self.lblSyncErrorFraction = QLabel("Sync error tolerance (k · GSD):")
+        self.lblSyncErrorFraction.setVisible(False)
+
+        self.lblResidualJitterMs = QLabel("Residual jitter (ms):")
+        self.lblResidualJitterMs.setVisible(False)
+
+        self.maxSpeedPPKResult = QLabel("Max Speed (PPK Sync): --")
         self.maxSpeedPPKResult.setVisible(False)
 
         speed_btn = QPushButton("Calculate Optimal Speed")
@@ -328,8 +352,8 @@ class Calculator_Dialog(QDialog):
         speed_form.addRow("Safety Factor (0.5-1.0):", self.safetyFactor)
         
         speed_form.addRow(self.ppkBox)
-        speed_form.addRow(self.lblGnssFreq, self.gnssFreq)
-        speed_form.addRow(self.lblMaxDistEpoch, self.maxDistEpoch)
+        speed_form.addRow(self.lblSyncErrorFraction, self.syncErrorFraction)
+        speed_form.addRow(self.lblResidualJitterMs, self.residualJitterMs)
         
         speed_form.addRow(self.maxSpeedBlurResult)
         speed_form.addRow(self.maxSpeedIntervalResult)
@@ -631,8 +655,8 @@ class Calculator_Dialog(QDialog):
             
             # PPK Inputs
             is_ppk = self.ppkBox.isChecked()
-            gnss_freq = self.gnssFreq.value()
-            dist_epoch = self.maxDistEpoch.value()
+            k_sync = self.syncErrorFraction.value()
+            jitter_ms = self.residualJitterMs.value()
             
             # 2. Calculate GSD first (needed for blur)
             gsd_cm = calculate_gsd_by_sensor(
@@ -655,8 +679,9 @@ class Calculator_Dialog(QDialog):
             )
             
             speed_ppk = float('inf')
+            gsd_m = gsd_cm / 100.0
             if is_ppk:
-                speed_ppk = calculate_speed_limit_ppk(gnss_freq, dist_epoch)
+                speed_ppk = calculate_speed_limit_ppk(gsd_m, k_sync, jitter_ms)
             
             # 4. Determine Recommended Speed
             min_speed = min(speed_blur, speed_interval)
@@ -672,7 +697,7 @@ class Calculator_Dialog(QDialog):
             self.maxSpeedIntervalResult.setText(f"Max Speed (Write Interval): {speed_interval:.2f} m/s")
             
             if is_ppk:
-                self.maxSpeedPPKResult.setText(f"Max Speed (PPK): {speed_ppk:.2f} m/s")
+                self.maxSpeedPPKResult.setText(f"Max Speed (PPK Sync): {speed_ppk:.2f} m/s")
                 self.maxSpeedPPKResult.setVisible(True)
             else:
                 self.maxSpeedPPKResult.setVisible(False)
@@ -682,11 +707,11 @@ class Calculator_Dialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Calculation Error", str(e))
 
-    def _toggle_ppk_inputs(self, visible):
-        self.gnssFreq.setVisible(visible)
-        self.maxDistEpoch.setVisible(visible)
-        self.lblGnssFreq.setVisible(visible)
-        self.lblMaxDistEpoch.setVisible(visible)
+    def _toggle_ppk_inputs(self, visible):        
+        self.syncErrorFraction.setVisible(visible)
+        self.residualJitterMs.setVisible(visible)
+        self.lblSyncErrorFraction.setVisible(visible)
+        self.lblResidualJitterMs.setVisible(visible)
         self.maxSpeedPPKResult.setVisible(visible)
 
 
