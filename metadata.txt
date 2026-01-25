@@ -2,7 +2,7 @@
 name=GeoFlight Planner
 qgisMinimumVersion=3.0
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
-version=3.0.0
+version=3.0.1
 author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
 email=suporteo@geoone.com.br
 
@@ -25,6 +25,7 @@ category=Drone
 icon=images/GeoFlightPlanner.png
 
 # changelog=
+    3.0.1 - Correction of maximum drone speed calculation formulas using PPK.
     3.0.0 - New course recorded, Horizontal Line Flight and CSV with more than one flight (Two Areas and Crossover Flight), drone velocity calculator added.
     2.1.3 - Improved validation for empty layers and enhanced distance rounding for more consistent results.
     2.1.2 - compatibility with Qt5 and Qt6
