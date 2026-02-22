@@ -258,7 +258,6 @@ class Calculator_Dialog(QDialog):
         overlap_form.addRow("Side Line Spacing (1 to 100 m):", self.spacingSide)
         overlap_form.addRow("Result:", self.overlapResult)
         overlap_form.addRow(overlap_btn)
-        overlap_form.addRow(overlap_btn)
         container_layout.addWidget(overlap_box)
 
         # Ideal Speed Section
@@ -447,34 +446,6 @@ class Calculator_Dialog(QDialog):
         # selected = self.droneCombo.currentText()
         # self.table.setRowCount(0)
         # self.saveButton.setVisible(selected == "Custom")
-
-
-        specs = self._get_specs()
-        if specs:
-            units = {
-                "sensor_width": "mm",
-                "sensor_height": "mm",
-                "focal_length": "mm",
-                "image_width": "px",
-                "image_height": "px",
-                "min_angle_cam": "degrees",
-                "max_angle_cam": "degrees"
-            }
-            for row, (key, value) in enumerate(specs.items()):
-                self.table.insertRow(row)
-
-                # Coluna Parameter (sempre não editável)
-                key_item = QTableWidgetItem(str(key))
-                key_item.setFlags(key_item.flags() & ~ITEM_IS_EDITABLE)
-                self.table.setItem(row, 0, key_item)
-
-                # Coluna Value (editável apenas se for Custom)
-                unit = units.get(key, "")
-                display_value = f"{value} {unit}" if unit else str(value)
-                value_item = QTableWidgetItem(display_value)
-                if selected != "Custom":
-                    value_item.setFlags(value_item.flags() & ~ITEM_IS_EDITABLE)
-                self.table.setItem(row, 1, value_item)
 
     def _save_custom_drone(self): # Save Custom Drone in JSON file
         custom_specs = {}
