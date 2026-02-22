@@ -24,7 +24,7 @@
         "image_width": 4000,
         "image_height": 3000,
         "min_angle_cam": -90,
-        "max_angle_cam": 0
+        "max_angle_cam": 60
     },
     "Mini 3 Pro": {
         "sensor_width": 9.7,
@@ -41,6 +41,24 @@
         "focal_length": 6.72,
         "image_width": 8064,
         "image_height": 6048,
+        "min_angle_cam": -90,
+        "max_angle_cam": 60
+    },
+    "Mini 5 Pro (12 MP)": {
+        "sensor_width": 13.2,
+        "sensor_height": 8.8,
+        "focal_length": 8.8,
+        "image_width": 4096,
+        "image_height": 3072,
+        "min_angle_cam": -90,
+        "max_angle_cam": 60
+    },
+    "Mini 5 Pro (50 MP)": {
+        "sensor_width": 13.2,
+        "sensor_height": 8.8,
+        "focal_length": 8.8,
+        "image_width": 8192,
+        "image_height": 6144,
         "min_angle_cam": -90,
         "max_angle_cam": 60
     },
