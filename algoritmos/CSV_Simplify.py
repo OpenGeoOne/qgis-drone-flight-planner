@@ -218,7 +218,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 pontos_csv_layer = QgsVectorLayer(temp_file, 'pontos_csv', 'ogr')
                 if pontos_csv_layer.isValid():
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
-                    pontos_csv_layer.setName(f"Pontos CSV - {csv_name}")
+                    pontos_csv_layer.setName(f"{csv_name} - Original CSV")
                     QgsProject.instance().addMapLayer(pontos_csv_layer)
                     # Simbologia
                     simbologiaPontos(pontos_csv_layer)
@@ -266,7 +266,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 'BAND': 1,
                 'POINTS': pontos_layer,
                 'RESAMPLING': 1,
-                'PREFIX': 'amostra_',
+                'PREFIX': 'sample_',
                 'OUTPUT': temp_file_amostrado
             }
             outputs['AmostrarRaster'] = processing.run(
@@ -317,13 +317,14 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 return {}
             
             field_names = [field.name() for field in extracted_points.fields()]
-            if 'amostra_banda1' not in field_names:
+            sample_band_name = 'sample_band_1'
+            if sample_band_name not in field_names:
                 feedback.reportError("Field 'sample_banda1' not found in layer")
                 return {}
             
             alg_params = {
                 'INPUT': extracted_points,
-                'Z_VALUE': QgsProperty.fromExpression('"amostra_banda1"'),
+                'Z_VALUE': QgsProperty.fromExpression(f'"{sample_band_name}"'),
                 'OUTPUT': temp_file_z
             }
             outputs['DefinirValorZ'] = processing.run(
@@ -452,7 +453,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 if linha_trajetoria_layer.isValid():
                     csv_path = self.parameterAsString(parameters, 'voo_em_csv', context)
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
-                    linha_trajetoria_layer.setName(f"Linha Trajetória - {csv_name}")
+                    linha_trajetoria_layer.setName(f"{csv_name} - Flight Line")
                     QgsProject.instance().addMapLayer(linha_trajetoria_layer)
                     feedback.pushInfo("✓ Trajectory line layer added to project")
                 else:
@@ -711,7 +712,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             if parameters['adicionar_pontos_simplificados']:
                 csv_path = self.parameterAsString(parameters, 'voo_em_csv', context)
                 csv_name = os.path.splitext(os.path.basename(csv_path))[0]
-                simplified_layer.setName(f"Simplified Points - {csv_name}")
+                simplified_layer.setName(f"{csv_name} - Simplified CSV")
                 QgsProject.instance().addMapLayer(simplified_layer)
                 feedback.pushInfo("✓ Simplified points layer added to project")
                     
