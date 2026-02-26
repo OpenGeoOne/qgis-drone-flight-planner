@@ -20,3 +20,6 @@ def classFactory(iface):
     from .main import GeoFlightPlanner
     
     return GeoFlightPlanner(iface)
+
+    # Verificar Unload do Processing
+    # QgsApplication.processingRegistry().removeProvider(self.provider)
