@@ -35,6 +35,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterVectorLayer('circulo_base','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterVectorLayer('ponto_inicial','Start Point', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber('altura','Object Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hObjVC))
@@ -45,7 +46,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterNumber('deltaVertical','Vertical Spacing (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dVertVC))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=1,maxValue=20,defaultValue=velocVC))
+                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayVC))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
@@ -66,6 +67,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
 
         H = parameters['altura']
         h = parameters['alturaMin']
+        terrain = parameters['aboveGround']
         inverte = parameters['inverte']
         numpartes = parameters['numpartes'] # deltaH será calculado
         deltaV = parameters['deltaVertical']
@@ -378,7 +380,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("VC", pontos_reproj, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng)
+            gerar_CSV("VC", pontos_reproj, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
@@ -421,7 +423,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Vertical.png'))
 
     texto = """This tool is designed to plan vertical and circular flights, ideal for 3D inspection and mapping projects around towers and similar objects.<br>
-It enables the creation of an optimized flight path to capture detailed images of the object's surroundings.
+It enables the creation of an optimized flight path to capture detailed images of the object's surroundings. Following terrain elevations (optionally).
 <p><b>Required configurations:</b></p>
 <ul>
   <li><b>Estimated object height:</b><span> Defines the highest point of the structure to be inspected.<o:p></o:p></span></li>

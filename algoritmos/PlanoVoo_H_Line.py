@@ -45,7 +45,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=1,defaultValue=dfL))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=1,maxValue=20,defaultValue=velocL))
+                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocL))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayL))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',

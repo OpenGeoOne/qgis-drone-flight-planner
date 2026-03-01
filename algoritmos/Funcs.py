@@ -60,22 +60,18 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
             alturavoo = H
             mode_gimbal = 2
             angulo_gimbal = gimbalAng
-            if terrain:
-               above_ground = 1 # Above Ground habilitado
-            else:
-               above_ground = 0 # Above Ground não habilitado
          elif flight_type == "H_RC2":
             alturavoo = H
             mode_gimbal = 0
             angulo_gimbal = gimbalAng
-            if terrain:
-               above_ground = 1 # Above Ground habilitado
-            else:
-               above_ground = 0 # Above Ground não habilitado
          else:
             mode_gimbal = 0
             angulo_gimbal = gimbalAng
-            above_ground = 0 # Above Ground não habilitado para voos verticais
+         
+         if terrain:
+            above_ground = 1 # Above Ground habilitado
+         else:
+            above_ground = 0 # Above Ground não habilitado
 
          if flight_type != "H_RC2":
             if tempo == 0:

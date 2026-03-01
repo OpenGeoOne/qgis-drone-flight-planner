@@ -48,6 +48,8 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterVectorLayer('linha_base','Flight Base Line', types=[QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterVectorLayer('ponto_base','Position Point of the Facade', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
+        self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber('altura','Facade Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hObjVF))
         self.addParameter(QgsProcessingParameterNumber('alturaMin','Start Height (m)',
@@ -59,7 +61,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Double,
                                                        minValue=0.5,defaultValue=dfVF))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=1,maxValue=20,defaultValue=velocVF))
+                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVF))
         self.addParameter(QgsProcessingParameterNumber('tempo','Wait time for Photo (seconds)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayVF))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
@@ -80,6 +82,8 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
 
         H = parameters['altura']
         h = parameters['alturaMin']
+        terrain = parameters['aboveGround']
+        inverte = parameters['inverte']
         deltaLat = parameters['dl']   # Distância das linhas de voo paralelas - sem cálculo
         deltaFront = parameters['df'] # Espaçamento Frontal entre as fotografias- sem cálculo
         velocidade = parameters['velocidade']
@@ -180,6 +184,9 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         # Obtem as alturas das linhas de Voo (range só para números inteiros)
         alturas = [i for i in np.arange(h, H + h + 1, deltaLat)]
 
+        if inverte:
+            alturas = list(reversed(alturas))
+            
         # Obtem as distâncias nas linhas de Voo
         comprimento_linha_base = linha_base_geom.length() # comprimento da linha
         distancias = [i for i in np.arange(0, comprimento_linha_base, deltaFront)]
@@ -362,7 +369,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("VF", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, angulo_perpendicular, H, gimbalAng)
+            gerar_CSV("VF", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, angulo_perpendicular, H, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
@@ -404,7 +411,7 @@ class PlanoVoo_V_F(QgsProcessingAlgorithm):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Vertical.png'))
 
     texto = """This tool is designed for creating vertical flight plans tailored for mapping building facades, ideal for architectural projects and building inspections.
-It enables the planning of a precise vertical trajectory with appropriate overlap and stop times for the drone, ensuring high-quality photographs and detailed mapping.</span></p>
+It enables the planning of a precise vertical trajectory with appropriate overlap and stop times for the drone, following terrain elevations (optionally), ensuring high-quality photographs and detailed mapping.</span></p>
 <p class="MsoNormal"><b>Configuration Details:</b></p>
 <ul style="margin-top: 0cm;" type="disc">
   <li><b><span>Estimated Facade Height:</span></b><span> Specifies the highest point of the facade to be mapped.</span></li>
