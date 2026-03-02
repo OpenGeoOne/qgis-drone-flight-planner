@@ -399,7 +399,7 @@ def duplicaPontoInicial(layer):
 
    return
 
-def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None, 
+def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=None, 
                    v=None, t=None, abGround=None, dl=None, df=None, dfop=None,
                    altMin=None, nPartesVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
@@ -459,6 +459,18 @@ def saveParametros(tipoVoo, h=None, gimbal=None, raster=None, csv=None,
         s.setValue(prefixo + "gimbalVF", gimbal)
         s.setValue(prefixo + "rasterVF", raster)
         s.setValue(prefixo + "csvVF", csv)
+
+    elif tipoVoo == "VnoLF":
+        s.setValue(prefixo + "distVnoLF", dist)
+        s.setValue(prefixo + "hObjVnoLF", h)
+        s.setValue(prefixo + "altMinVnoLF", altMin)
+        s.setValue(prefixo + "dlVnoLF", dl)
+        s.setValue(prefixo + "dfVnoLF", df)
+        s.setValue(prefixo + "velocVnoLF", v)
+        s.setValue(prefixo + "tStayVnoLF", t)
+        s.setValue(prefixo + "gimbalVnoLF", gimbal)
+        s.setValue(prefixo + "rasterVnoLF", raster)
+        s.setValue(prefixo + "csvVnoLF", csv)
 
     elif tipoVoo == "VC":
         s.setValue(prefixo + "hObjVC", h)
@@ -553,6 +565,20 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "gimbalVF", 0),
             s.value(prefixo + "rasterVF", ""),
             s.value(prefixo + "csvVF", "")
+        )
+
+    elif tipoVoo == "VnoLF":
+        return (
+            s.value(prefixo + "distVnoLF", 10),
+            s.value(prefixo + "hObjVnoLF", 15),
+            s.value(prefixo + "altMinVnoLF", 2.5),
+            s.value(prefixo + "dlVnoLF", 5),
+            s.value(prefixo + "dfVnoLF", 3),
+            s.value(prefixo + "velocVnoLF", 1),
+            s.value(prefixo + "tStayVnoLF", 2),
+            s.value(prefixo + "gimbalVnoLF", 0),
+            s.value(prefixo + "rasterVnoLF", ""),
+            s.value(prefixo + "csvVnoLF", "")
         )
 
     elif tipoVoo == "VC":
