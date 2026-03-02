@@ -428,7 +428,7 @@ class PlanoVoo_V_noLF(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("VF", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, angulo_normal, H, gimbalAng, terrain)
+            gerar_CSV("VnoLF", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, 0, H, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:

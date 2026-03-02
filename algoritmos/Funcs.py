@@ -108,8 +108,11 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
             longitude = f['longitude']
             latitude = f['latitude']
 
-            if flight_type == "VF":
+            if flight_type == "VLF":
                alturavoo = f['height']
+            elif flight_type == "VnoLF":
+               alturavoo = f['height']
+               angulo = f['bowangle']
             elif flight_type == "VC":
                alturavoo = f['height']
                angulo = f['angle']
