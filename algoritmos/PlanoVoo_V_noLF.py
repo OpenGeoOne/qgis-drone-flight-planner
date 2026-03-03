@@ -302,7 +302,13 @@ class PlanoVoo_V_noLF(QgsProcessingAlgorithm):
         feat_ref = next(pontos_base.getFeatures())
         ponto_fachada_ref = feat_ref.geometry().asPoint()
 
-        for feat_linha in flight_layer.getFeatures():
+        linhas = sorted(
+            flight_layer.getFeatures(),
+            key=lambda f: f["height"],
+            reverse=inverte
+        )
+
+        for idx, feat_linha in enumerate(linhas):
             geom_linha = feat_linha.geometry()
             linha_id = feat_linha["id"]
             altura_voo = feat_linha["height"]
@@ -314,7 +320,7 @@ class PlanoVoo_V_noLF(QgsProcessingAlgorithm):
                 distancias.append(dist)
 
             # Alternar sentido (zig-zag)
-            if linha_id % 2 == 0:
+            if idx % 2 == 1:
                 distancias = list(reversed(distancias))
 
             for d in distancias:
