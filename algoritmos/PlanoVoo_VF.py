@@ -465,7 +465,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         return PlanoVoo_VF()
 
     def tags(self):
-        return self.tr('Flight Plan,Measure,Topography,Fachada,Vertical,Front,View,GeoOne').split(',')
+        return self.tr('Flight Plan,Measure,Topography,Fachada,Facade,Vertical,Front,View,GeoOne').split(',')
 
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Vertical.png'))
@@ -476,7 +476,6 @@ It enables the planning of a precise vertical trajectory with appropriate overla
 <ul style="margin-top: 0cm;" type="disc">
   <li><b><span>Estimated Facade Height:</span></b><span> Specifies the highest point of the facade to be mapped.</span></li>
   <li><b><span>Flight Base Line:</span></b><span> The path along which the drone will fly in front of the facade.</span></li>
-  <li><b><span>Position of the Facade:</span></b><span> A reference point on the facade used to calculate overlap distances.</span></li>
 </ul>
 <p><span>The outputs are <b>CSV</b> file compatible with the <b>Litchi app</b>. and 2 Layers - <b>Flight Line</b> and <b>Photos Points</b>.
 <p>It can also be used with other flight applications, utilizing the 2 genereted Layers for flight lines and waypoints.</p>
