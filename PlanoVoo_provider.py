@@ -26,9 +26,8 @@ from .algoritmos.PlanoVoo_H_Sensor import PlanoVoo_H_Sensor
 from .algoritmos.PlanoVoo_H_Manual import PlanoVoo_H_Manual
 from .algoritmos.PlanoVoo_H_RC2 import PlanoVoo_H_RC2
 from .algoritmos.PlanoVoo_H_Line import PlanoVoo_H_Line
-from .algoritmos.PlanoVoo_V_LF import PlanoVoo_V_LF
-from .algoritmos.PlanoVoo_V_noLF import PlanoVoo_V_noLF
-from .algoritmos.PlanoVoo_V_C import PlanoVoo_V_C
+from .algoritmos.PlanoVoo_VF import PlanoVoo_VF
+from .algoritmos.PlanoVoo_VC import PlanoVoo_VC
 from .algoritmos.CSV_Simplify import CSV_Simplify
 from .algoritmos.CSV_Merge import CSV_Merge
 
@@ -44,9 +43,8 @@ class PlanoVooProvider(QgsProcessingProvider):
         self.addAlgorithm(PlanoVoo_H_Manual())
         self.addAlgorithm(PlanoVoo_H_RC2())
         self.addAlgorithm(PlanoVoo_H_Line())
-        self.addAlgorithm(PlanoVoo_V_C())
-        self.addAlgorithm(PlanoVoo_V_LF())
-        self.addAlgorithm(PlanoVoo_V_noLF())
+        self.addAlgorithm(PlanoVoo_VC())
+        self.addAlgorithm(PlanoVoo_VF())
         self.addAlgorithm(CSV_Simplify())
         self.addAlgorithm(CSV_Merge())
 

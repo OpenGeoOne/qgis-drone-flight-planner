@@ -108,14 +108,9 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
             longitude = f['longitude']
             latitude = f['latitude']
 
-            if flight_type == "VLF":
-               alturavoo = f['height']
-            elif flight_type == "VnoLF":
+            if flight_type == "VF" or flight_type == "VC":
                alturavoo = f['height']
                angulo = f['bowangle']
-            elif flight_type == "VC":
-               alturavoo = f['height']
-               angulo = f['angle']
                
             # Criar um dicionário de dados para cada item do CSV
             data = {
@@ -453,6 +448,7 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "csvL", csv)
 
     elif tipoVoo == "VF":
+        s.setValue(prefixo + "distVF", dist)
         s.setValue(prefixo + "hObjVF", h)
         s.setValue(prefixo + "altMinVF", altMin)
         s.setValue(prefixo + "dlVF", dl)
@@ -462,18 +458,6 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "gimbalVF", gimbal)
         s.setValue(prefixo + "rasterVF", raster)
         s.setValue(prefixo + "csvVF", csv)
-
-    elif tipoVoo == "VnoLF":
-        s.setValue(prefixo + "distVnoLF", dist)
-        s.setValue(prefixo + "hObjVnoLF", h)
-        s.setValue(prefixo + "altMinVnoLF", altMin)
-        s.setValue(prefixo + "dlVnoLF", dl)
-        s.setValue(prefixo + "dfVnoLF", df)
-        s.setValue(prefixo + "velocVnoLF", v)
-        s.setValue(prefixo + "tStayVnoLF", t)
-        s.setValue(prefixo + "gimbalVnoLF", gimbal)
-        s.setValue(prefixo + "rasterVnoLF", raster)
-        s.setValue(prefixo + "csvVnoLF", csv)
 
     elif tipoVoo == "VC":
         s.setValue(prefixo + "hObjVC", h)
@@ -559,6 +543,7 @@ def loadParametros(tipoVoo):
 
     elif tipoVoo == "VF":
         return (
+            s.value(prefixo + "distVF", 10),
             s.value(prefixo + "hObjVF", 15),
             s.value(prefixo + "altMinVF", 2.5),
             s.value(prefixo + "dlVF", 5),
@@ -568,20 +553,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "gimbalVF", 0),
             s.value(prefixo + "rasterVF", ""),
             s.value(prefixo + "csvVF", "")
-        )
-
-    elif tipoVoo == "VnoLF":
-        return (
-            s.value(prefixo + "distVnoLF", 10),
-            s.value(prefixo + "hObjVnoLF", 15),
-            s.value(prefixo + "altMinVnoLF", 2.5),
-            s.value(prefixo + "dlVnoLF", 5),
-            s.value(prefixo + "dfVnoLF", 3),
-            s.value(prefixo + "velocVnoLF", 1),
-            s.value(prefixo + "tStayVnoLF", 2),
-            s.value(prefixo + "gimbalVnoLF", 0),
-            s.value(prefixo + "rasterVnoLF", ""),
-            s.value(prefixo + "csvVnoLF", "")
         )
 
     elif tipoVoo == "VC":

@@ -29,7 +29,7 @@ import os
 import math
 import numpy as np
 
-class PlanoVoo_V_C(QgsProcessingAlgorithm):
+class PlanoVoo_VC(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         hObjVC, altMinVC, nPartesVC, dVertVC, velocVC, tStayVC, gimbalVC, rasterVC, csvVC = loadParametros("VC")
 
@@ -277,7 +277,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         campos.append(QgsField("longitude", QVariant.Double))
         campos.append(QgsField("altitude", QVariant.Double))
         campos.append(QgsField("height", QVariant.Double))
-        campos.append(QgsField("angle", QVariant.Double))
+        campos.append(QgsField("bowangle", QVariant.Double))
         pontos_provider.addAttributes(campos)
         pontos_fotos.updateFields()
 
@@ -348,7 +348,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
                 ponto_feature.setAttribute("longitude", Ponto_Geo.x())
                 ponto_feature.setAttribute("altitude", a + float(altura))
                 ponto_feature.setAttribute("height", float(altura))
-                ponto_feature.setAttribute("angle", angulo)
+                ponto_feature.setAttribute("bowangle", angulo)
                 ponto_feature.setGeometry(ponto_geom)
                 pontos_provider.addFeature(ponto_feature)
 
@@ -399,10 +399,10 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         return {}
 
     def name(self):
-        return 'Flight_Plan_V_C'
+        return 'Flight_Plan_VC'
 
     def displayName(self):
-        return self.tr('3. Circular')
+        return self.tr('2. Circular')
 
     def group(self):
         return 'Vertical Flight'
@@ -414,7 +414,7 @@ class PlanoVoo_V_C(QgsProcessingAlgorithm):
         return QCoreApplication.translate('Processing', string)
 
     def createInstance(self):
-        return PlanoVoo_V_C()
+        return PlanoVoo_VC()
 
     def tags(self):
         return self.tr('Flight Plan,Measure,Topography,orbital,focal,GeoOne').split(',')
