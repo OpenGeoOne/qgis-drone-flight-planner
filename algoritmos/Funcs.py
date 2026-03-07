@@ -753,3 +753,4 @@ def simbologiaLinhaVoo3D(layer):
     layer.trigger3DUpdate()
     
     return
+

@@ -46,6 +46,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         distVF, hObjVF, altMinVF, dlVF, dfVF, velocVF, tStayVF, gimbalVF, rasterVF, csvVF = loadParametros("VF")
 
         self.addParameter(QgsProcessingParameterVectorLayer('linhaRef','Position of the Line on the Facade', types=[QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterVectorLayer('pontoRef','Reference Point', types=[QgsProcessing.TypeVectorPoint]))
         self.addParameter(QgsProcessingParameterNumber('dist','Distance from the Facade Flight Line (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=3,defaultValue=distVF))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
@@ -75,6 +76,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
         # ===== Parâmetros de entrada para variáveis ====================================================
         linhaRef = self.parameterAsVectorLayer(parameters, 'linhaRef', context)
+        pontoRef = self.parameterAsVectorLayer(parameters, 'pontoRef', context)
 
         camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
 
@@ -93,7 +95,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
         # ===== Verificações =============================================================================
         # Verificar se as camadas estão salvas e fora da edição
-        for lyr, nome in [(linhaRef, 'Position of the Line on the Facade')]:
+        for lyr, nome in [(linhaRef, 'Position of the Line on the Facade'), (pontoRef, 'Reference Point')]:
             if lyr.isEditable():
                 raise QgsProcessingException(f"❌ Layer '{nome}' is in edit mode. Please save and exit editing before continuing.")
             
@@ -114,6 +116,10 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
         if num_vertices < 2:
             raise QgsProcessingException("❌ The line must contain at least 2 vertices.")
+        
+        # Verificar se a camada Ponto possui apenas 1 ponto
+        if pontoRef.featureCount() != 1:
+            raise QgsProcessingException("❌ Reference Point must contain only one point.")
          
         # Verificar caminho das pastas
         if 'saida_csv' not in parameters:
@@ -155,14 +161,14 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         # ===============================================================================
 
         # ===== Gerar as Geometrias =====================================================
-        # 1. Lendo a Linha de Referência da Fachada
+        # Lendo a Linha de Referência da Fachada
         feat = next(linhaRef.getFeatures())
         linha_base_geom = feat.geometry()
 
         if not linha_base_geom or linha_base_geom.isEmpty():
             raise QgsProcessingException("❌ Failed to read facade line.")
-        
-        # 2. Suavizar
+
+        # Suavizar
         num_vertices = sum(1 for _ in linha_base_geom.vertices())
 
         if num_vertices > 2:
@@ -173,14 +179,41 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         else:
             linha_suavizada_geom = linha_base_geom
 
+        # Criar OFFSET da linha suavizada
+        feat_pt = next(pontoRef.getFeatures()) # Determinar lado da fachada usando pontoRef
+        pt_ref = feat_pt.geometry().asPoint()
+
+        # dois primeiros pontos da linha da fachada
+        pts_linha = linha_suavizada_geom.asPolyline()
+
+        p1 = pts_linha[0]
+        p2 = pts_linha[1]
+
+        # vetor da fachada
+        dx = p2.x() - p1.x()
+        dy = p2.y() - p1.y()
+
+        # vetor até pontoRef
+        dxp = pt_ref.x() - p1.x()
+        dyp = pt_ref.y() - p1.y()
+
+        # produto vetorial (define o lado)
+        lado = dx * dyp - dy * dxp
+
+        # definir sinal do offset
+        if lado > 0:
+            dist_offset = dist_fachada
+        else:
+            dist_offset = -dist_fachada
+
         linha_offset_geom = linha_suavizada_geom.offsetCurve(
-            dist_fachada,
+            dist_offset,
             segments=12,
             joinStyle=Qgis.JoinStyle.Round,
             miterLimit=2
         )
-        
-        # 3. Converter para LineStringZ
+
+        # Converter para LineStringZ
         pts_z = []
 
         for pt in linha_offset_geom.asPolyline():
@@ -188,7 +221,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
         linha_final_geom = QgsGeometry.fromPolyline(pts_z)
 
-        # 4. Criar camada final "Flight Line"
+        # Criar camada final "Flight Line"
         flight_layer = QgsVectorLayer(
             f"LineStringZ?crs={crs.authid()}",
             "Flight Line",
@@ -203,25 +236,17 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         prov.addAttributes(campos)
         flight_layer.updateFields()
 
-        # 5. Aplicar simbologia
+        # Aplicar simbologia
         symbol = QgsLineSymbol.createSimple({})
         symbol.setColor(QColor(255, 0, 0))  # vermelho
         symbol.setWidth(1)
 
         flight_layer.renderer().setSymbol(symbol)
+        flight_layer.commitChanges()
+        flight_layer.updateExtents()
         flight_layer.triggerRepaint()
 
-        # 6. Mostra valores parciais
-        geom = linha_final_geom  # já temos a geometria final
-        dist = geom.length()
-        feedback.pushInfo(f"✅ Flight Line Length: {round(dist, 2)} m")
- 
-        feedback.pushInfo(f"✅ Flight Line to Facade Distance: {round(dist_fachada, 2)}     Facade Height: {round(H, 2)}")
-
-        # Sobreposições digitadas manualmente
-        feedback.pushInfo(f"✅ Lateral Spacing: {round(deltaLat,2)}, Frontal Spacing: {round(deltaFront,2)}")
-
-        # 7. Obtem as alturas das linhas de Voo (range só para números inteiros)
+        # Obtem as alturas das linhas de Voo (range só para números inteiros)
         alturas = [i for i in np.arange(h, H + h + 1, deltaLat)]
 
         if inverte:
@@ -255,14 +280,20 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         flight_layer.updateExtents()
         flight_layer.triggerRepaint()
 
-        # 8. Reprojetar linha Voo para WGS84 (4326)
-        flight_layer = reprojeta_camada_WGS84(flight_layer, crs_wgs, transformador)
-        flight_layer.commitChanges()
+        # Mostra valores parciais
+        geom = linha_final_geom  # já temos a geometria final
+        dist = geom.length()
+        feedback.pushInfo(f"✅ Flight Line Length: {round(dist, 2)} m")
+ 
+        feedback.pushInfo(f"✅ Flight Line to Facade Distance: {round(dist_fachada, 2)}     Facade Height: {round(H, 2)}")
 
-        # ===== LINHA VOO =================================
-        QgsProject.instance().addMapLayer(flight_layer)
+        # Sobreposições digitadas manualmente
+        feedback.pushInfo(f"✅ Lateral Spacing: {round(deltaLat,2)}, Frontal Spacing: {round(deltaFront,2)}")
 
+        # Lado da Linha de Voo em relação à fachada
+        feedback.pushInfo(f"Reference point defines flight side: {'LEFT' if lado>0 else 'RIGHT'}")
 
+        # =======================================================================================================================
         # ===== Criar a camada Pontos de Fotos ==================================================================================
         pontos_fotos = QgsVectorLayer('Point?crs=' + crs.authid(), 'Photo Points', 'memory')
         pontos_provider = pontos_fotos.dataProvider()
@@ -293,7 +324,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
         # Ponto de referência da fachada (primeiro ponto)
         feat_ref = next(linhaRef.getFeatures())
-        ponto_fachada_ref = feat_ref.geometry().vertexAt(0)
+        geom_fachada_ref = feat_ref.geometry()
 
         linhas = sorted(
             flight_layer.getFeatures(),
@@ -306,13 +337,14 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
             linha_id = feat_linha["id"]
             altura_voo = feat_linha["height"]
 
-            distancias = list(np.arange(0, dist, deltaFront))
+            dist_linha = geom_linha.length()
+            distancias = list(np.arange(0, dist_linha, deltaFront))
 
             if not distancias:
-                distancias = [0, dist]
+                distancias = [0, dist_linha]
             else:
-                if not math.isclose(distancias[-1], dist):
-                    distancias.append(dist)
+                if not math.isclose(distancias[-1], dist_linha):
+                    distancias.append(dist_linha)
 
             # Alternar sentido (zig-zag)
             if idx % 2 == 1:
@@ -337,10 +369,9 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
 
                 # ----- Criar feature -----
                 f = QgsFeature(pontos_fotos.fields())
-                f.setGeometry(QgsGeometry.fromPoint(QgsPoint(
+                f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(
                     ponto.x(),
-                    ponto.y(),
-                    altitude_final
+                    ponto.y()
                 )))
 
                 f["id"] = pontoID
@@ -354,7 +385,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                 eps = 0.01
 
                 d_prev = max(d - eps, 0)
-                d_next = min(d + eps, dist)
+                d_next = min(d + eps, geom_linha.length())
 
                 pt1 = geom_linha.interpolate(d_prev)
                 pt2 = geom_linha.interpolate(d_next)
@@ -369,20 +400,25 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                 dx = p2.x() - p1.x()
                 dy = p2.y() - p1.y()
 
-                # Normal à direita
+                # A câmera não deve olhar para onde o drone voa (tangente), mas sim para a fachada; precisamos de um vetor perpendicular (a Normal)
                 nx = dy
                 ny = -dx
 
-                norm = math.hypot(nx, ny)
-                if norm == 0:
+                norm = math.hypot(nx, ny) # comprimento do vetor
+                if norm <= 0:
                     continue
 
+                # Normalizar o vetor (comprimento = 1)
                 nx /= norm
                 ny /= norm
 
-                # Vetor do ponto atual até um ponto da fachada
-                vx = ponto_fachada_ref.x() - ponto.x()
-                vy = ponto_fachada_ref.y() - ponto.y()
+                # Vetor do ponto atual até um ponto da fachada; achar o ponto mais próximo na fachada real
+                ponto_drone_geom = QgsGeometry.fromPointXY(ponto)
+                ponto_prox_geom = geom_fachada_ref.nearestPoint(ponto_drone_geom)
+                ponto_fachada_dinamico = ponto_prox_geom.asPoint()
+
+                vx = ponto_fachada_dinamico.x() - ponto.x()
+                vy = ponto_fachada_dinamico.y() - ponto.y()
 
                 # Produto escalar
                 produto = nx * vx + ny * vy
@@ -393,6 +429,9 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                     ny *= -1
 
                 # Converter para ângulo (0° = Norte)
+                # math.atan2(nx, ny) calcula o ângulo do vetor
+                # Note que o padrão matemático é (y, x), mas para sistemas de navegação (Norte no topo), inverte-se para (x, y)
+                # Transforma de Radianos para Graus e normaliza para 0-360°
                 bowangle = math.degrees(math.atan2(nx, ny)) % 360
 
                 f["bowangle"] = bowangle
@@ -420,9 +459,21 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
             
             QgsProject.instance().addMapLayer(pontos_reproj)
 
+        
+        # Reprojetar linha Voo para WGS84 (4326)
+        flight_layer = reprojeta_camada_WGS84(flight_layer, crs_wgs, transformador)
+        flight_layer.commitChanges()
+        flight_layer.updateExtents()
+        flight_layer.triggerRepaint()
+
+        # ===== LINHA VOO =================================
+        QgsProject.instance().addMapLayer(flight_layer)
+
+
         feedback.pushInfo(f"✅ Total Estimated Flight Time: {tempo_total:.1f} s")
         feedback.pushInfo("✅ Photo Spots generated.")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
+
 
         # =============L I T C H I==========================================================
 
