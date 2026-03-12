@@ -2,7 +2,7 @@
 name=GeoFlight Planner
 qgisMinimumVersion=3.0
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
-version=3.1.0
+version=3.0.4
 author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
 email=suporteo@geoone.com.br
 
@@ -25,7 +25,7 @@ category=Drone
 icon=images/GeoFlightPlanner.png
 
 # changelog=
-    3.1.0 - Non-Linear Vertical Flight Facade / Minimum Flight Speed (0.5 m/s) / AboveGround in Vertical Flight / Reverse in Vertical Flight Facade / In Facade Flights, the horizontal distance between the Object and the Flight Line decreased from 10 to 3 meters.
+    3.0.4 - Non-Linear Vertical Flight Facade / Minimum Flight Speed (0.5 m/s) / AboveGround in Vertical Flight / Reverse in Vertical Flight Facade / In Facade Flights, the horizontal distance between the Object and the Flight Line decreased from 10 to 3 meters.
     3.0.3 - Bug fix: updated the Simplify Waypoint CSV tool to resolve the 'sample_banda1 not found in layer' error.
     3.0.2 - Updated camera database with DJI Mini 5 Pro (1″ sensor, 50MP) and refined mission planning parameters.
     3.0.1 - Correction of maximum drone speed calculation formulas using PPK.
