@@ -64,8 +64,8 @@ class GeoFlightPlanner:
         self._add_action("Line", lambda: self._run_algorithm("Flight_Plan_H_Line"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
 
         # Add Vertical submenu actions
-        self._add_action("Facade", lambda: self._run_algorithm("Flight_Plan_V_F"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
-        self._add_action("Circular", lambda: self._run_algorithm("Flight_Plan_V_C"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
+        self._add_action("Facade", lambda: self._run_algorithm("Flight_Plan_VF"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
+        self._add_action("Circular", lambda: self._run_algorithm("Flight_Plan_VC"), vertical_menu, os.path.join(icon_dir, "Vertical.png"))
 
         # Add Simplified submenu actions
         self._add_action("Simplify Waypoints", lambda: self._run_algorithm('SimplifyWaypoints'.lower()), csv_menu, os.path.join(icon_dir, "CSV.png"))
