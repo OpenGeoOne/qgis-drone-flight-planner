@@ -22,7 +22,20 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, removeLayersReproj, pontos3D
+from .Funcs import (
+    gerar_CSV,
+    set_Z_value,
+    reprojeta_camada_WGS84,
+    simbologiaLinhaVoo,
+    simbologiaPontos,
+    simbologiaPontos3D,
+    verificarCRS,
+    loadParametros,
+    saveParametros,
+    removeLayersReproj,
+    pontos3D,
+    duplicaPontoInicial
+)
 from ..images.Imgs import *
 import processing
 import os
@@ -203,7 +216,7 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
         linhas_circulares_provider.addAttributes(campos)
         linhas_circulares_layer.updateFields()
 
-        linhas_circulares_layer.startEditing
+        linhas_circulares_layer.startEditing()
 
         # Adicionar polígonos com alturas diferentes
         linha_id = 1
