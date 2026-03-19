@@ -191,8 +191,8 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
         transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
 
         # =========================================================================
-        # ===== Criar Polígono Inscrito ===========================================
-        # Calcular vértices do polígono inscrito
+        # ===== Criar linha inscrita ==============================================
+        # Calcular vértices da linha inscrita
         pontos = []
         for i in range(numpartes):
             angulo = math.radians(360 / numpartes * i)
@@ -200,13 +200,16 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
             y = centro.y() + raio * math.sin(angulo)
             pontos.append(QgsPointXY(x, y))
 
-        # Criar geometria do polígono
-        polygon_geometry = QgsGeometry.fromPolygonXY([pontos])
+        # Fechar a linha adicionando o primeiro ponto no final
+        pontos_linha = pontos + [pontos[0]]
+
+        # Criar geometria da linha fechada
+        line_geometry = QgsGeometry.fromPolylineXY(pontos_linha)
 
         # ===============================================================================
-        # ===== Criar a camada "Linha de Voo" ===========================================
+        # ===== Criar a camada "Flight Line" ===========================================
 
-        linhas_circulares_layer = QgsVectorLayer('Polygon?crs=' + crs.authid(), 'Flight Line', 'memory')
+        linhas_circulares_layer = QgsVectorLayer('LineString?crs=' + crs.authid(), 'Flight Line', 'memory')
         linhas_circulares_provider = linhas_circulares_layer.dataProvider()
 
         # Definir campos
@@ -218,23 +221,22 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
 
         linhas_circulares_layer.startEditing()
 
-        # Adicionar polígonos com alturas diferentes
+        # Adicionar linhas com alturas diferentes
         linha_id = 1
-
         for altura in alturas:
             feature = QgsFeature()
-            feature.setGeometry(polygon_geometry)  # Reutilizar a mesma geometria
-            feature.setAttributes([linha_id, altura])  # Atribuir ID e alturavoo (height)
+            feature.setGeometry(line_geometry)
+            feature.setAttributes([linha_id, altura])
             linhas_circulares_provider.addFeature(feature)
-
             linha_id += 1
 
         linhas_circulares_layer.commitChanges()
+        linhas_circulares_layer.updateExtents()
 
-         # Reprojetar linha Voo para WGS84 (4326)
+        # Reprojetar linha Voo para WGS84 (4326)
         linha_voo_reproj = reprojeta_camada_WGS84(linhas_circulares_layer, crs_wgs, transformador)
 
-        # LineString paraLineStringZ
+        # LineString para LineStringZ
         linha_voo_reproj = set_Z_value(linha_voo_reproj, z_field="height")
 
         # Configurar simbologia
@@ -272,8 +274,8 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
             if feature.geometry().asPoint() == ponto_inicial_xy:
                 # Atualizar a geometria do ponto inicial
                 feature.setGeometry(novo_ponto_inicial_geom)
-                ponto_inicial_move.updateFeature(feature)  # Salvar a atualização
-                break  # Atualizar apenas o primeiro ponto encontrado (ou o correto)
+                ponto_inicial_move.updateFeature(feature)
+                break
 
         ponto_inicial_move.commitChanges()
         ponto_inicial_move.triggerRepaint()
@@ -300,15 +302,18 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
 
         # Criar os vértices da primeira carreira de pontos
         features = linhas_circulares_layer.getFeatures()
-        feature = next(features)  # Obter a primeira e única feature
-        polygon_geometry = feature.geometry()
-        vertices = list(polygon_geometry.vertices())
+        feature = next(features)
+        line_geom = feature.geometry()
+        vertices = list(line_geom.vertices())
 
-        # Remover o último vértice -  Um polígono fechado, o primeiro e o último vértice têm as mesmas coordenadas
-        vertices = vertices[:-1]
+        # Remover o último vértice repetido da linha fechada
+        if len(vertices) > 1 and QgsPointXY(vertices[0]) == QgsPointXY(vertices[-1]):
+            vertices = vertices[:-1]
 
         # Garantir que os vértices estejam no sentido horário
-        if polygon_geometry.area() > 0:  # Se a área for positiva, os vértices estão no sentido anti-horário
+        # Usa o polígono equivalente apenas para verificar orientação
+        polygon_check = QgsGeometry.fromPolygonXY([[QgsPointXY(v.x(), v.y()) for v in vertices]])
+        if polygon_check.area() > 0:
             vertices.reverse()
 
         # Determinar o ponto inicial
@@ -318,18 +323,18 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
         # Verificar qual vértice o ponto inicial coincide
         idx_ponto_inicial = None
         for i, v in enumerate(vertices):
-            if QgsPointXY(v).distance(ponto_inicial) < 1e-6:  # Tolera um pequeno erro de precisão
+            if QgsPointXY(v).distance(ponto_inicial) < 1e-6:
                 idx_ponto_inicial = i
                 break
 
         # Se o ponto inicial está na posição 0 não precisamos fazer nada; só verificar a ordem a seguir
-        if idx_ponto_inicial != 0:
+        if idx_ponto_inicial is not None and idx_ponto_inicial != 0:
             vertices_reordenados = vertices[idx_ponto_inicial:] + vertices[:idx_ponto_inicial]
         else:
-            vertices_reordenados = vertices  # Caso não encontre, mantém a lista original
+            vertices_reordenados = vertices
 
         # Criar os pontos para as outras linhas de Voo
-        for idx, altura in enumerate(alturas, start=1):  # Cada altura corresponde a uma linha de voo
+        for idx, altura in enumerate(alturas, start=1):
             for v in vertices_reordenados:
                 ponto_geom = QgsGeometry.fromPointXY(QgsPointXY(v.x(), v.y()))
 
@@ -339,18 +344,18 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
                     param_kml = 'absolute'
                     transformadorMDE = QgsCoordinateTransform(linhas_circulares_layer.crs(), camadaMDE.crs(), QgsProject.instance())
                     ponto_mde = transformadorMDE.transform(QgsPointXY(v.x(), v.y()))
-                    value, result = camadaMDE.dataProvider().sample(QgsPointXY(ponto_mde), 1)  # Amostragem no raster
+                    value, result = camadaMDE.dataProvider().sample(QgsPointXY(ponto_mde), 1)
                     a = value if result else 0
                 else:
                     a = 0
 
                 # Calcular o ângulo do ponto
-                centroide = circulo_base_geom.centroid().asPoint()  # Obter o centro geométrico do objeto
+                centroide = circulo_base_geom.centroid().asPoint()
                 dx = v.x() - centroide.x()
                 dy = v.y() - centroide.y()
-                angulo_rad = math.atan2(dx, dy)          # Ângulo em radianos
-                angulo_graus = math.degrees(angulo_rad)  # Converter para graus
-                angulo = (angulo_graus + 180) % 360      # Inverter o ângulo para que seja para o centro
+                angulo_rad = math.atan2(dx, dy)
+                angulo_graus = math.degrees(angulo_rad)
+                angulo = (angulo_graus + 180) % 360
 
                 Ponto_Geo = transformador.transform(QgsPointXY(v.x(), v.y()))
                 ponto_feature = QgsFeature()
@@ -392,9 +397,8 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
 
         feedback.pushInfo("")
 
-        if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
+        if arquivo_csv and arquivo_csv.endswith('.csv'):
             gerar_CSV("VC", pontos_reproj, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng, terrain)
-
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
