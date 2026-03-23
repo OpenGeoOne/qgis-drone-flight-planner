@@ -1,6 +1,7 @@
 [general]
 name=GeoFlight Planner
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.40
+qgisMaximumVersion=4.99
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
 version=3.0.5
 author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
