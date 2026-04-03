@@ -19,34 +19,28 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QColor
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
-import processing
 import os
 import math
 import numpy as np
 
 from .Funcs import (
     gerar_CSV,
-    set_Z_value,
-    reprojeta_camada_WGS84,
-    pontos3D,
-    simbologiaPontos,
-    simbologiaPontos3D,
-    verificarCRS,
+    meters2degrees,
+    salvar_kml,
+    azimute,
     loadParametros,
     saveParametros,
-    removeLayersReproj
+    csv_como_layer
 )
 
 class PlanoVoo_VF(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         distVF, hObjVF, altMinVF, dlVF, dfVF, velocVF, tStayVF, gimbalVF, rasterVF, csvVF = loadParametros("VF")
 
-        self.addParameter(QgsProcessingParameterVectorLayer('linhaRef','Position of the Line on the Facade', types=[QgsProcessing.TypeVectorLine]))
-        self.addParameter(QgsProcessingParameterVectorLayer('pontoRef','Reference Point', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterFeatureSource('linhaRef','Position of the Line on the Facade', types=[QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('dist','Distance from the Facade Flight Line (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=3,defaultValue=distVF))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
@@ -67,79 +61,49 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayVF))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalVF))
-        self.addParameter(QgsProcessingParameterRasterLayer('raster','Input Raster (if any)', defaultValue=rasterVF, optional=True))
-        #self.addParameter(QgsProcessingParameterFolderDestination('saida_kml', 'Output Folder for kml (Google Earth)', defaultValue=skml, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvVF))
 
     def processAlgorithm(self, parameters, context, feedback):
-        teste = False # Quando True mostra camadas intermediárias
-
+        
         # ===== Parâmetros de entrada para variáveis ====================================================
         linhaRef = self.parameterAsVectorLayer(parameters, 'linhaRef', context)
-        pontoRef = self.parameterAsVectorLayer(parameters, 'pontoRef', context)
-
-        camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
-
-        dist_fachada = parameters['dist']
-        H = parameters['altura']
-        h = parameters['alturaMin']
-        terrain = parameters['aboveGround']
-        inverte = parameters['inverte']
-        deltaLat = parameters['dl']   # Distância das linhas de voo paralelas - sem cálculo
-        deltaFront = parameters['df'] # Espaçamento Frontal entre as fotografias- sem cálculo
-        velocidade = parameters['velocidade']
-        tempo = parameters['tempo']
-        gimbalAng = parameters['gimbalAng']
-        raster_layer = self.parameterAsRasterLayer(parameters, 'raster', context)
+        dist_fachada = self.parameterAsDouble(parameters, 'dist', context)
+        H = self.parameterAsDouble(parameters, 'altura', context)
+        h = self.parameterAsDouble(parameters, 'alturaMin', context)
+        terrain = self.parameterAsBool(parameters, 'aboveGround', context)
+        inverte = self.parameterAsBool(parameters, 'inverte', context)
+        deltaLat = self.parameterAsDouble(parameters, 'dl', context)
+        deltaFront = self.parameterAsDouble(parameters, 'df', context)
+        velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
+        tempo = self.parameterAsDouble(parameters, 'tempo', context)
+        gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
         arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
+        abrir_kml = self.parameterAsBool(parameters, 'kml', context)
 
         # ===== Verificações =============================================================================
-        # Verificar se as camadas estão salvas e fora da edição
-        for lyr, nome in [(linhaRef, 'Position of the Line on the Facade'), (pontoRef, 'Reference Point')]:
-            if lyr.isEditable():
-                raise QgsProcessingException(f"❌ Layer '{nome}' is in edit mode. Please save and exit editing before continuing.")
-            
-            # Detecta camada temporária ou não salva
-            storage_type = lyr.dataProvider().storageType().lower()
-            uri = lyr.dataProvider().dataSourceUri().lower()
-            if storage_type == '' or 'memory:' in uri or '/temporary/' in uri:
-                raise QgsProcessingException(f"❌ Layer '{nome}' is not saved. Save the layer to disk before using it.")
 
-        # Verificar se a camada Linha possui mais de 2 vértices (2 vértices = Linear) (+ de 2 = não Linear)
+        # A camada de entrada deve conter apenas 1 linha
+        if linhaRef.featureCount() != 1:
+            raise QgsProcessingException("❌ Select 1 line feature!")
+        
+        # A geometria da linha deve ser válida
         feat = next(linhaRef.getFeatures())
         geom_ref = feat.geometry()
-
         if not geom_ref or geom_ref.isEmpty():
-            raise QgsProcessingException("❌ Invalid line geometry.")
-
-        num_vertices = sum(1 for _ in geom_ref.vertices())
-
-        if num_vertices < 2:
-            raise QgsProcessingException("❌ The line must contain at least 2 vertices.")
+            raise QgsProcessingException("❌ Invalid line geometry!")
         
-        # Verificar se a camada Ponto possui apenas 1 ponto
-        if pontoRef.featureCount() != 1:
-            raise QgsProcessingException("❌ Reference Point must contain only one point.")
+        # Número de vértices da linha linha deve ser igual o maior que 2
+        num_vertices = sum(1 for _ in geom_ref.vertices())
+        if num_vertices < 2:
+            raise QgsProcessingException("❌ The line must contain at least 2 vertices!")
          
         # Verificar caminho das pastas
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
-
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
-
-        # Verificar o SRC da Camada
-        crs = linhaRef.crs()
-
-        if "UTM" in crs.description().upper():
-            feedback.pushInfo(f"The layer 'Position of the Line on the Facade' is already in CRS UTM.")
-        elif "WGS 84" in crs.description().upper() or "SIRGAS 2000" in crs.description().upper():
-            crs = verificarCRS(linhaRef, feedback)
-            nome = linhaRef.name() + "_reproject"
-            linhaRef = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VF",
@@ -148,354 +112,147 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
-                        raster=raster_layer.source() if raster_layer else "",
+                        raster="", # não usar esse parâmetro!!!!
                         csv=arquivo_csv,
                         altMin=parameters['alturaMin'],
                         dl=parameters['dl'],
-                        df=parameters['df']) 
+                        df=parameters['df'])
 
         # ===============================================================================
-        # Reprojetar para WGS 84 (EPSG:4326)
-        crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
-        transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
-        # ===============================================================================
-
-        # ===== Gerar as Geometrias =====================================================
+        # Calcular offset da linha
         # Lendo a Linha de Referência da Fachada
         feat = next(linhaRef.getFeatures())
         linha_base_geom = feat.geometry()
-
-        if not linha_base_geom or linha_base_geom.isEmpty():
-            raise QgsProcessingException("❌ Failed to read facade line.")
-
-        # Suavizar
-        num_vertices = sum(1 for _ in linha_base_geom.vertices())
-
-        if num_vertices > 2:
-            linha_suavizada_geom = linha_base_geom.smooth(
-                iterations=5,
-                offset=0.35
-            )
-        else:
-            linha_suavizada_geom = linha_base_geom
-
-        # Criar OFFSET da linha suavizada
-        feat_pt = next(pontoRef.getFeatures()) # Determinar lado da fachada usando pontoRef
-        pt_ref = feat_pt.geometry().asPoint()
-
-        # dois primeiros pontos da linha da fachada
-        pts_linha = linha_suavizada_geom.asPolyline()
-
-        p1 = pts_linha[0]
-        p2 = pts_linha[1]
-
-        # vetor da fachada
-        dx = p2.x() - p1.x()
-        dy = p2.y() - p1.y()
-
-        # vetor até pontoRef
-        dxp = pt_ref.x() - p1.x()
-        dyp = pt_ref.y() - p1.y()
-
-        # produto vetorial (define o lado)
-        lado = dx * dyp - dy * dxp
-
-        # definir sinal do offset
-        if lado > 0:
-            dist_offset = dist_fachada
-        else:
-            dist_offset = -dist_fachada
-
-        linha_offset_geom = linha_suavizada_geom.offsetCurve(
-            dist_offset,
-            segments=12,
-            joinStyle=Qgis.JoinStyle.Round,
-            miterLimit=2
-        )
-
-        # Converter para LineStringZ
-        pts_z = []
-
-        for pt in linha_offset_geom.asPolyline():
-            pts_z.append(QgsPoint(pt.x(), pt.y(), 0))  # Z inicial = 0
-
-        linha_final_geom = QgsGeometry.fromPolyline(pts_z)
-
-        # Criar camada final "Flight Line"
-        flight_layer = QgsVectorLayer(
-            f"LineStringZ?crs={crs.authid()}",
-            "Flight Line",
-            "memory"
-        )
-
-        prov = flight_layer.dataProvider()
-
-        campos = QgsFields()
-        campos.append(QgsField("id", QVariant.Int))
-        campos.append(QgsField("height", QVariant.Double))
-        prov.addAttributes(campos)
-        flight_layer.updateFields()
-
-        # Aplicar simbologia
-        symbol = QgsLineSymbol.createSimple({})
-        symbol.setColor(QColor(255, 0, 0))  # vermelho
-        symbol.setWidth(1)
-
-        flight_layer.renderer().setSymbol(symbol)
-        flight_layer.commitChanges()
-        flight_layer.updateExtents()
-        flight_layer.triggerRepaint()
-
-        # Obtem as alturas das linhas de Voo (range só para números inteiros)
-        alturas = [i for i in np.arange(h, H + h + 1, deltaLat)]
-
-        if inverte:
-            alturas = list(reversed(alturas))
-
-        flight_layer.startEditing()
-
-        id_counter = 1
-
-        # Geometria base (2D)
-        base_pts = linha_offset_geom.asPolyline()
-
-        for altura in alturas:
-            pts_z = []
-
-            for pt in base_pts:
-                pts_z.append(QgsPoint(pt.x(), pt.y(), float(altura)))
-
-            geom_z = QgsGeometry.fromPolyline(pts_z)
-
-            feat = QgsFeature(flight_layer.fields())
-            feat.setGeometry(geom_z)
-            feat["id"] = id_counter
-            feat["height"] = float(altura)
-
-            flight_layer.addFeature(feat)
-
-            id_counter += 1
-
-        flight_layer.commitChanges()
-        flight_layer.updateExtents()
-        flight_layer.triggerRepaint()
-
-        # Mostra valores parciais
-        geom = linha_final_geom  # já temos a geometria final
-        dist = geom.length()
-        feedback.pushInfo(f"✅ Flight Line Length: {round(dist, 2)} m")
- 
-        feedback.pushInfo(f"✅ Flight Line to Facade Distance: {round(dist_fachada, 2)}     Facade Height: {round(H, 2)}")
-
-        # Sobreposições digitadas manualmente
-        feedback.pushInfo(f"✅ Lateral Spacing: {round(deltaLat,2)}, Frontal Spacing: {round(deltaFront,2)}")
-
-        # Lado da Linha de Voo em relação à fachada
-        feedback.pushInfo(f"Reference point defines flight side: {'LEFT' if lado>0 else 'RIGHT'}")
-
-        # =======================================================================================================================
-        # ===== Criar a camada Pontos de Fotos ==================================================================================
-        pontos_fotos = QgsVectorLayer('Point?crs=' + crs.authid(), 'Photo Points', 'memory')
-        pontos_provider = pontos_fotos.dataProvider()
-
-        campos = QgsFields()
-        campos.append(QgsField("id", QVariant.Int))
-        campos.append(QgsField("linha", QVariant.Int))
-        campos.append(QgsField("latitude", QVariant.Double))
-        campos.append(QgsField("longitude", QVariant.Double))
-        campos.append(QgsField("altitude", QVariant.Double))
-        campos.append(QgsField("height", QVariant.Double))
-        campos.append(QgsField("bowangle", QVariant.Double))
-        pontos_provider.addAttributes(campos)
-        pontos_fotos.updateFields()
-
-        pontoID = 1
-        tempo_total = 0
-
-        # Transformador para MDE (se existir)
-        param_kml = 'relativeToGround'
-        if camadaMDE:
-            param_kml = 'absolute'
-            transformadorMDE = QgsCoordinateTransform(
-                crs,
-                camadaMDE.crs(),
-                QgsProject.instance()
-            )
-
-        # Ponto de referência da fachada (primeiro ponto)
-        feat_ref = next(linhaRef.getFeatures())
-        geom_fachada_ref = feat_ref.geometry()
-
-        linhas = sorted(
-            flight_layer.getFeatures(),
-            key=lambda f: f["height"],
-            reverse=inverte
-        )
-
-        for idx, feat_linha in enumerate(linhas):
-            geom_linha = feat_linha.geometry()
-            linha_id = feat_linha["id"]
-            altura_voo = feat_linha["height"]
-
-            dist_linha = geom_linha.length()
-            distancias = list(np.arange(0, dist_linha, deltaFront))
-
-            if not distancias:
-                distancias = [0, dist_linha]
-            else:
-                if not math.isclose(distancias[-1], dist_linha):
-                    distancias.append(dist_linha)
-
-            # Alternar sentido (zig-zag)
-            if idx % 2 == 1:
-                distancias = list(reversed(distancias))
-
-            for d in distancias:
-                ponto_geom = geom_linha.interpolate(d)
-                ponto = ponto_geom.asPoint()
-
-                # ----- Altitude do terreno -----
-                altitude_terreno = 0
-
-                if camadaMDE:
-                    ponto_mde = transformadorMDE.transform(QgsPointXY(ponto.x(), ponto.y()))
-                    value, ok = camadaMDE.dataProvider().sample(ponto_mde, 1)
-                    altitude_terreno = value if ok else 0
-
-                altitude_final = altitude_terreno + float(altura_voo)
-
-                # ----- Converter para WGS84 -----
-                ponto_wgs = transformador.transform(QgsPointXY(ponto.x(), ponto.y()))
-
-                # ----- Criar feature -----
-                f = QgsFeature(pontos_fotos.fields())
-                f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(
-                    ponto.x(),
-                    ponto.y()
-                )))
-
-                f["id"] = pontoID
-                f["linha"] = linha_id
-                f["latitude"] = ponto_wgs.y()
-                f["longitude"] = ponto_wgs.x()
-                f["altitude"] = altitude_final
-                f["height"] = float(altura_voo)
-
-                # ================= Calcular Bow Angle apontando para fachada =================
-                eps = 0.01
-
-                d_prev = max(d - eps, 0)
-                d_next = min(d + eps, geom_linha.length())
-
-                pt1 = geom_linha.interpolate(d_prev)
-                pt2 = geom_linha.interpolate(d_next)
-
-                if pt1.isNull() or pt2.isNull():
-                    continue
-
-                p1 = pt1.asPoint()
-                p2 = pt2.asPoint()
-
-                # Vetor tangente local
-                dx = p2.x() - p1.x()
-                dy = p2.y() - p1.y()
-
-                # A câmera não deve olhar para onde o drone voa (tangente), mas sim para a fachada; precisamos de um vetor perpendicular (a Normal)
-                nx = dy
-                ny = -dx
-
-                norm = math.hypot(nx, ny) # comprimento do vetor
-                if norm <= 0:
-                    continue
-
-                # Normalizar o vetor (comprimento = 1)
-                nx /= norm
-                ny /= norm
-
-                # Vetor do ponto atual até um ponto da fachada; achar o ponto mais próximo na fachada real
-                ponto_drone_geom = QgsGeometry.fromPointXY(ponto)
-                ponto_prox_geom = geom_fachada_ref.nearestPoint(ponto_drone_geom)
-                ponto_fachada_dinamico = ponto_prox_geom.asPoint()
-
-                vx = ponto_fachada_dinamico.x() - ponto.x()
-                vy = ponto_fachada_dinamico.y() - ponto.y()
-
-                # Produto escalar
-                produto = nx * vx + ny * vy
-
-                # Se estiver apontando para fora da fachada, inverter
-                if produto < 0:
-                    nx *= -1
-                    ny *= -1
-
-                # Converter para ângulo (0° = Norte)
-                # math.atan2(nx, ny) calcula o ângulo do vetor
-                # Note que o padrão matemático é (y, x), mas para sistemas de navegação (Norte no topo), inverte-se para (x, y)
-                # Transforma de Radianos para Graus e normaliza para 0-360°
-                bowangle = math.degrees(math.atan2(nx, ny)) % 360
-
-                f["bowangle"] = bowangle
-
-                pontos_provider.addFeature(f)
-
-                pontoID += 1
-
-            # ----- Tempo estimado por linha -----
-            tempo_linha = dist / velocidade
-            tempo_total += tempo_linha
-
-        pontos_fotos.updateExtents()
-        # Reprojetar camada Pontos Fotos de UTM para WGS84 (4326)
-        pontos_reproj = reprojeta_camada_WGS84(pontos_fotos, crs_wgs, transformador)
-
-        # Point para PointZ
-        if param_kml == 'absolute':
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-            pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj, "VF")
-        else:
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-            simbologiaPontos(pontos_reproj)
-            
-            QgsProject.instance().addMapLayer(pontos_reproj)
-
+        crs = linhaRef.crs()
+
+        # Reprojetar para WGS 84
+        crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
+        transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
+        linha_base_geom.transform(transformador)
+
+        # Transformar distancias para graus
+        centroide = linha_base_geom.centroid().asPoint()
+        latitude_ref = centroide.y()
+        dist_fachada = meters2degrees(dist_fachada, latitude_ref, crs)
+        deltaFront = meters2degrees(deltaFront, latitude_ref, crs)
+
+        offset_geom = linha_base_geom.offsetCurve(
+                                                    dist_fachada,  # distância
+                                                    segments = 6,    # suavização de curvas
+                                                    joinStyle = Qgis.JoinStyle.Round,   # Qgis.JoinStyle.Round, Qgis.JoinStyle.Miter, Qgis.JoinStyle.Bevel
+                                                    miterLimit = 2.0
+                                                    )
         
-        # Reprojetar linha Voo para WGS84 (4326)
-        flight_layer = reprojeta_camada_WGS84(flight_layer, crs_wgs, transformador)
-        flight_layer.commitChanges()
-        flight_layer.updateExtents()
-        flight_layer.triggerRepaint()
 
-        # ===== LINHA VOO =================================
-        QgsProject.instance().addMapLayer(flight_layer)
+        # ===== Gerar as Geometrias =====================================================
+        
+        # obter pontos dentro da distância de cada linha
+        def distancia(P1, P2):
+            return np.sqrt((P1.x() - P2.x())**2 + (P1.y() - P2.y())**2)
 
+        comprimento = offset_geom.length()
+        if offset_geom.isMultipart():
+            coord = offset_geom.asMultiPolyline()[0]
+        else:
+            coord = offset_geom.asPolyline()
+        LISTA = []
+        # Criar lista de pontos e distancias
+        ListaDist = [0]
+        soma = 0
+        distSec = deltaFront # distância entre fotos (seções)
 
-        feedback.pushInfo(f"✅ Total Estimated Flight Time: {tempo_total:.1f} s")
-        feedback.pushInfo("✅ Photo Spots generated.")
-        feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
+        for i in range(len(coord)-1):
+            point1 = coord[i]
+            point2 = coord[i+1]
+            m = distancia(point1, point2)
+            soma += m
+            ListaDist += [soma]
+        # Numero de Secoes e Nova Distancia
+        if distSec < comprimento:
+            NumSec = np.floor(comprimento/distSec)
+            DistSecNova = comprimento/NumSec
+            dist = np.arange(0, comprimento+DistSecNova, DistSecNova)
+        else:
+            NumSec, DistSecNova = 1, comprimento
+            dist = np.arange(0, comprimento+DistSecNova, DistSecNova)
+        # Cálculo do azimute - direção perpendicular à linha
+        cont = 0
+        for k in range(len(coord)-1):
+            while ListaDist[k] <= dist[cont] and dist[cont] < ListaDist[k+1]:
+                point1 = np.array([coord[k].x(), coord[k].y()])
+                point2 = np.array([coord[k+1].x(), coord[k+1].y()])
+                vetor = point2 - point1
+                vetor/= np.linalg.norm(vetor)
+                MultDist = dist[cont]-ListaDist[k]
+                centro = point1 + vetor*MultDist
+                # Pontos extremos de cada secao
+                p1 = centro +  np.array([vetor[1], -1*vetor[0]])/2.0
+                p2 = centro +  np.array([-1*vetor[1], vetor[0]])/2.0
+                Az = azimute(QgsPointXY(float(p1[0]), float(p1[1])), QgsPointXY(float(p2[0]), float(p2[1])))[1]*180/np.pi
+                LISTA += [  {'longitude':float(centro[0]), 
+                            'latitude':float(centro[1]), 
+                            'height':0, 
+                            'bowangle': int(Az) }  ]
+                cont +=1
+                if cont == NumSec +1:
+                    break
+            if cont == NumSec +1:
+                break
+        # Última seção
+        cont +=1
+        point1 =  np.array([coord[-2].x(), coord[-2].y()])
+        point2 =  np.array([coord[-1].x(), coord[-1].y()])
+        vetor = point2 - point1
+        vetor/= np.linalg.norm(vetor)
+        centro =  np.array([coord[-1].x(), coord[-1].y()])
+        p1 = centro +  np.array([vetor[1], -1*vetor[0]])/2.0
+        p2 = centro +  np.array([-1*vetor[1], vetor[0]])/2.0
+        Az = azimute(QgsPointXY(float(p1[0]), float(p1[1])), QgsPointXY(float(p2[0]), float(p2[1])))[0]*180/np.pi
+        LISTA += [{'longitude':float(centro[0]), 
+                    'latitude':float(centro[1]), 
+                    'height':0, 
+                    'bowangle': int(Az) }]
+        
+        # Fazer as linhas de voo paralelas
+        alturas = np.arange(h, H + deltaLat, deltaLat) # de baixo para cima
+        if inverte:
+            alturas = alturas[::-1] # de cima para baixo
+        LISTA_PONTOS = []
+        direcao = 1
+        for alt in alturas:
+            for pnt in LISTA[::direcao]:
+                novo_pnt = pnt.copy()
+                novo_pnt['height'] = float(alt)
+                LISTA_PONTOS.append(novo_pnt)
+            direcao *= -1
 
-
-        # =============L I T C H I==========================================================
+        # ============= L I T C H I ==========================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("VF", pontos_reproj, arquivo_csv, velocidade, tempo, deltaFront, 0, H, gimbalAng, terrain)
+            gerar_CSV("VF", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront, 0, H, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        # ============= Remover Camadas Reproject ===================================================
+        # ============= Criar KML do caminho (path) ===============================================        
+        base, ext = os.path.splitext(arquivo_csv)
+        caminho_kml = base + ".kml"
+        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
 
-        removeLayersReproj('_reproject')
+        self.csv_path = arquivo_csv
+        self.kml_path = caminho_kml
+        self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
         feedback.pushInfo("✅ Facade Vertical Flight Plan successfully executed.")
         feedback.pushInfo("")
         
-        return {}
+        return {'csv': arquivo_csv,
+                'kml': caminho_kml}
 
     def name(self):
         return 'Flight_Plan_VF'
@@ -553,3 +310,42 @@ It enables the planning of a precise vertical trajectory with appropriate overla
                       </div>
                     </div>'''
         return self.tr(self.texto) + corpo
+    
+    
+    def postProcessAlgorithm(self, context, feedback):        
+        # ================= Carregar CSV no QGIS =================
+        layer_pontos = None
+
+        if hasattr(self, 'csv_path') and self.csv_path:
+            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
+
+            if layer_pontos is None or not layer_pontos.isValid():
+                feedback.reportError("❌ Could not load CSV as point layer.")
+            else:
+                QgsProject.instance().addMapLayer(layer_pontos)
+                feedback.pushInfo("✅ CSV point layer added to QGIS.")
+
+        # ================= Carregar KML no QGIS =================
+        layer_kml = None
+
+        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+            layer_kml = QgsVectorLayer(self.kml_path, os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
+
+            if layer_kml.isValid():
+                QgsProject.instance().addMapLayer(layer_kml)
+                feedback.pushInfo("✅ KML layer added to QGIS.")
+            else:
+                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
+
+        # ================= Abrir KML no Google Earth =================
+        if hasattr(self, 'abrir_kml') and self.abrir_kml:
+            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
+                if ok:
+                    feedback.pushInfo("✅ KML opened with the default application.")
+                else:
+                    feedback.reportError("⚠️ Could not open the KML automatically.")
+            else:
+                feedback.reportError("⚠️ KML path not found.")
+
+        return {}
