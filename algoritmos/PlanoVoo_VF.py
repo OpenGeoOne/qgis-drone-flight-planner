@@ -67,7 +67,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
     def processAlgorithm(self, parameters, context, feedback):
         
         # ===== Parâmetros de entrada para variáveis ====================================================
-        linhaRef = self.parameterAsVectorLayer(parameters, 'linhaRef', context)
+        linhaRef = self.parameterAsSource(parameters, 'linhaRef', context)
         dist_fachada = self.parameterAsDouble(parameters, 'dist', context)
         H = self.parameterAsDouble(parameters, 'altura', context)
         h = self.parameterAsDouble(parameters, 'alturaMin', context)
@@ -123,7 +123,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         # Lendo a Linha de Referência da Fachada
         feat = next(linhaRef.getFeatures())
         linha_base_geom = feat.geometry()
-        crs = linhaRef.crs()
+        crs = linhaRef.sourceCrs()
 
         # Reprojetar para WGS 84
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
@@ -329,7 +329,7 @@ It enables the planning of a precise vertical trajectory with appropriate overla
         layer_kml = None
 
         if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-            layer_kml = QgsVectorLayer(self.kml_path, os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
+            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
 
             if layer_kml.isValid():
                 QgsProject.instance().addMapLayer(layer_kml)
