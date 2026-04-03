@@ -945,12 +945,9 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
         f"&crs=EPSG:4326"
     )
 
-    layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
+    layer = QgsVectorLayer(uri, 'waypoints - ' + layer_name, "delimitedtext")
 
     if not layer.isValid():
         return None
-
-    if add_to_project:
-        QgsProject.instance().addMapLayer(layer)
 
     return layer
