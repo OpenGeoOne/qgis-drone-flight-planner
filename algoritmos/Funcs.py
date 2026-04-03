@@ -32,6 +32,7 @@ from qgis.PyQt.QtGui import QColor, QFont
 from qgis.PyQt.QtCore import QVariant
 import qgis.utils
 import processing, math
+import numpy as np
 import csv
 
 def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None, deltaFront_op=None):
@@ -101,68 +102,129 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
             t4 = 0
             time_interval = -1
             dist_interval = -1
-            
-         # Ler os dados da camada Pontos
-         for f in pontos_fotos.getFeatures():
-            # Extrair os valores dos campos da camada
-            longitude = f['longitude']
-            latitude = f['latitude']
+         
+         if isinstance(pontos_fotos, list):
+            # Ler os dados da lista
+            for ponto in pontos_fotos:
+               # Extrair os valores dos campos da camada
+               longitude = ponto['longitude']
+               latitude = ponto['latitude']
 
-            if flight_type == "VF" or flight_type == "VC":
-               alturavoo = f['height']
-               angulo = f['bowangle']
-               
-            # Criar um dicionário de dados para cada item do CSV
-            data = {
-               "latitude": f"{latitude:.8f}",
-               "longitude": f"{longitude:.8f}",
-               "altitude(m)": f"{alturavoo:.1f}",
-               "heading(deg)": f"{angulo:.0f}",
-               "curvesize(m)": 0,
-               "rotationdir": 0,
-               "gimbalmode": mode_gimbal,
-               "gimbalpitchangle": angulo_gimbal,
-               "actiontype1": t1,
-               "actionparam1": t2,
-               "actiontype2": t3,
-               "actionparam2": t4,
-               "actiontype3": -1,
-               "actionparam3": 0,
-               "actiontype4": -1,
-               "actionparam4": 0,
-               "actiontype5": -1,
-               "actionparam5": 0,
-               "actiontype6": -1,
-               "actionparam6": 0,
-               "actiontype7": -1,
-               "actionparam7": 0,
-               "actiontype8": -1,
-               "actionparam8": 0,
-               "actiontype9": -1,
-               "actionparam9": 0,
-               "actiontype10": -1,
-               "actionparam10": 0,
-               "actiontype11": -1,
-               "actionparam11": 0,
-               "actiontype12": -1,
-               "actionparam12": 0,
-               "actiontype13": -1,
-               "actionparam13": 0,
-               "actiontype14": -1,
-               "actionparam14": 0,
-               "actiontype15": -1,
-               "actionparam15": 0,
-               "altitudemode": above_ground,
-               "speed(m/s)": velocidade,
-               "poi_latitude": 0,
-               "poi_longitude": 0,
-               "poi_altitude(m)": 0,
-               "poi_altitudemode": 0,
-               "photo_timeinterval": time_interval,
-               "photo_distinterval": dist_interval}
+               if flight_type == "VF" or flight_type == "VC":
+                  alturavoo = ponto['height']
+                  angulo = ponto['bowangle']
 
-            # Escrever a linha no CSV
-            writer.writerow(data)
+               # Criar um dicionário de dados para cada item do CSV
+               data = {
+                  "latitude": f"{latitude:.8f}",
+                  "longitude": f"{longitude:.8f}",
+                  "altitude(m)": f"{alturavoo:.1f}",
+                  "heading(deg)": f"{angulo:.0f}",
+                  "curvesize(m)": 0,
+                  "rotationdir": 0,
+                  "gimbalmode": mode_gimbal,
+                  "gimbalpitchangle": angulo_gimbal,
+                  "actiontype1": t1,
+                  "actionparam1": t2,
+                  "actiontype2": t3,
+                  "actionparam2": t4,
+                  "actiontype3": -1,
+                  "actionparam3": 0,
+                  "actiontype4": -1,
+                  "actionparam4": 0,
+                  "actiontype5": -1,
+                  "actionparam5": 0,
+                  "actiontype6": -1,
+                  "actionparam6": 0,
+                  "actiontype7": -1,
+                  "actionparam7": 0,
+                  "actiontype8": -1,
+                  "actionparam8": 0,
+                  "actiontype9": -1,
+                  "actionparam9": 0,
+                  "actiontype10": -1,
+                  "actionparam10": 0,
+                  "actiontype11": -1,
+                  "actionparam11": 0,
+                  "actiontype12": -1,
+                  "actionparam12": 0,
+                  "actiontype13": -1,
+                  "actionparam13": 0,
+                  "actiontype14": -1,
+                  "actionparam14": 0,
+                  "actiontype15": -1,
+                  "actionparam15": 0,
+                  "altitudemode": above_ground,
+                  "speed(m/s)": velocidade,
+                  "poi_latitude": 0,
+                  "poi_longitude": 0,
+                  "poi_altitude(m)": 0,
+                  "poi_altitudemode": 0,
+                  "photo_timeinterval": time_interval,
+                  "photo_distinterval": f"{dist_interval:.2f}"}
+               # Escrever a linha no CSV
+               writer.writerow(data)
+         else: #layer
+            # Ler os dados da camada Pontos
+            for f in pontos_fotos.getFeatures():
+               # Extrair os valores dos campos da camada
+               longitude = f['longitude']
+               latitude = f['latitude']
+
+               if flight_type == "VF" or flight_type == "VC":
+                  alturavoo = f['height']
+                  angulo = f['bowangle']
+                  
+               # Criar um dicionário de dados para cada item do CSV
+               data = {
+                  "latitude": f"{latitude:.8f}",
+                  "longitude": f"{longitude:.8f}",
+                  "altitude(m)": f"{alturavoo:.1f}",
+                  "heading(deg)": f"{angulo:.0f}",
+                  "curvesize(m)": 0,
+                  "rotationdir": 0,
+                  "gimbalmode": mode_gimbal,
+                  "gimbalpitchangle": angulo_gimbal,
+                  "actiontype1": t1,
+                  "actionparam1": t2,
+                  "actiontype2": t3,
+                  "actionparam2": t4,
+                  "actiontype3": -1,
+                  "actionparam3": 0,
+                  "actiontype4": -1,
+                  "actionparam4": 0,
+                  "actiontype5": -1,
+                  "actionparam5": 0,
+                  "actiontype6": -1,
+                  "actionparam6": 0,
+                  "actiontype7": -1,
+                  "actionparam7": 0,
+                  "actiontype8": -1,
+                  "actionparam8": 0,
+                  "actiontype9": -1,
+                  "actionparam9": 0,
+                  "actiontype10": -1,
+                  "actionparam10": 0,
+                  "actiontype11": -1,
+                  "actionparam11": 0,
+                  "actiontype12": -1,
+                  "actionparam12": 0,
+                  "actiontype13": -1,
+                  "actionparam13": 0,
+                  "actiontype14": -1,
+                  "actionparam14": 0,
+                  "actiontype15": -1,
+                  "actionparam15": 0,
+                  "altitudemode": above_ground,
+                  "speed(m/s)": velocidade,
+                  "poi_latitude": 0,
+                  "poi_longitude": 0,
+                  "poi_altitude(m)": 0,
+                  "poi_altitudemode": 0,
+                  "photo_timeinterval": time_interval,
+                  "photo_distinterval": dist_interval}
+               # Escrever a linha no CSV
+               writer.writerow(data)
 
 def addCampo(layer, field_name, field_type):
       layer.dataProvider().addAttributes([QgsField(field_name, field_type)])
@@ -754,3 +816,147 @@ def simbologiaLinhaVoo3D(layer):
     
     return
 
+
+# Transformar distancia em metros para graus
+def meters2degrees(dist, lat, SRC):
+    ellipsoid_id = SRC.ellipsoidAcronym()
+    ellipsoid = QgsEllipsoidUtils.ellipsoidParameters(ellipsoid_id)
+    a = ellipsoid.semiMajor
+    f_inv = ellipsoid.inverseFlattening
+    f=1/f_inv
+    e2 = f*(2-f)
+    N = a/np.sqrt(1-e2*(np.sin(lat))**2) # Raio de curvatura 1º vertical
+    M = a*(1-e2)/(1-e2*(np.sin(lat))**2)**(3/2.) # Raio de curvatura meridiana
+    R = np.sqrt(M*N) # Raio médio de Gauss
+    theta = dist/R
+    theta = np.degrees(theta) # Radianos para graus
+    return theta
+
+
+# Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
+def azimute(A, B):
+    dx = B.x() - A.x()
+    dy = B.y() - A.y()
+
+    # Pontos coincidentes
+    if dx == 0 and dy == 0:
+        return None, None
+
+    # Azimute a partir do Norte, no sentido horário
+    AzAB = np.arctan2(dx, dy) % (2 * np.pi)
+    AzBA = (AzAB + np.pi) % (2 * np.pi)
+
+    return AzAB, AzBA
+
+
+def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
+    coords_linha = " ".join(
+        f"{p['longitude']},{p['latitude']},{p['height']}"
+        for p in LISTA_PONTOS
+    )
+
+    placemarks = []
+    for i, p in enumerate(LISTA_PONTOS, start=1):
+        placemarks.append(f"""
+        <Placemark id="waypoints.{i}">
+            <Point>
+                <altitudeMode>relativeToGround</altitudeMode>
+                <coordinates>{p['longitude']},{p['latitude']},{p['height']}</coordinates>
+            </Point>
+        </Placemark>""")
+
+    kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document id="root_doc">
+        <name>{nome_doc}</name>
+
+        <Folder>
+            <name>path</name>
+            <Placemark id="path.1">
+                <LineString>
+                    <altitudeMode>relativeToGround</altitudeMode>
+                    <coordinates>
+                        {coords_linha}
+                    </coordinates>
+                </LineString>
+            </Placemark>
+        </Folder>
+
+        <Folder>
+            <name>waypoints</name>
+            {''.join(placemarks)}
+        </Folder>
+    </Document>
+</kml>
+"""
+
+    with open(caminho_saida, "w", encoding="utf-8") as f:
+        f.write(kml)
+
+
+import os
+from qgis.core import QgsVectorLayer, QgsProject
+
+
+def csv_como_layer(csv_path, layer_name=None, z_field="altitude(m)"):
+    if not csv_path or not os.path.exists(csv_path):
+        return None
+
+    if layer_name is None:
+        layer_name = os.path.splitext(os.path.basename(csv_path))[0]
+
+    csv_path_uri = csv_path.replace("\\", "/")
+
+    # ===== 1. Carregar CSV (2D)
+    uri = (
+        f"file:///{csv_path_uri}"
+        f"?type=csv"
+        f"&delimiter=,"
+        f"&detectTypes=yes"
+        f"&xField=longitude"
+        f"&yField=latitude"
+        f"&geomType=point"
+        f"&crs=EPSG:4326"
+    )
+
+    layer_2d = QgsVectorLayer(uri, layer_name, "delimitedtext")
+
+    if not layer_2d.isValid():
+        return None
+
+    # ===== 2. Criar camada PointZ
+    crs = layer_2d.crs().authid()
+
+    layer_3d = QgsVectorLayer(f"PointZ?crs={crs}", layer_name + "_3D", "memory")
+    prov = layer_3d.dataProvider()
+
+    # copiar campos
+    prov.addAttributes(layer_2d.fields())
+    layer_3d.updateFields()
+
+    feats = []
+
+    for f in layer_2d.getFeatures():
+        x = f["longitude"]
+        y = f["latitude"]
+
+        # pegar Z
+        z = f[z_field] if z_field in f.fields().names() else 0
+
+        try:
+            z = float(z)
+        except:
+            z = 0
+
+        geom = QgsGeometry.fromPoint(QgsPoint(x, y, z))
+
+        new_feat = QgsFeature(layer_3d.fields())
+        new_feat.setGeometry(geom)
+        new_feat.setAttributes(f.attributes())
+
+        feats.append(new_feat)
+
+    prov.addFeatures(feats)
+    layer_3d.updateExtents()
+
+    return layer_3d
