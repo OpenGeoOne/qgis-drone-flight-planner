@@ -207,7 +207,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         centro =  np.array([coord[-1].x(), coord[-1].y()])
         p1 = centro +  np.array([vetor[1], -1*vetor[0]])/2.0
         p2 = centro +  np.array([-1*vetor[1], vetor[0]])/2.0
-        Az = azimute(QgsPointXY(float(p1[0]), float(p1[1])), QgsPointXY(float(p2[0]), float(p2[1])))[0]*180/np.pi
+        Az = azimute(QgsPointXY(float(p1[0]), float(p1[1])), QgsPointXY(float(p2[0]), float(p2[1])))[1]*180/np.pi
         LISTA += [{'longitude':float(centro[0]), 
                     'latitude':float(centro[1]), 
                     'height':0, 
