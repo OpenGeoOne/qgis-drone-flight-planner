@@ -19,6 +19,7 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
+import os
 
 from qgis._3d import (
     QgsVectorLayer3DRenderer,
@@ -869,7 +870,31 @@ def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
 <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document id="root_doc">
         <name>{nome_doc}</name>
-
+        <Style id="default">
+            <LineStyle>
+                <color>ff0000ff</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <StyleMap id="default0">
+            <Pair>
+                <key>normal</key>
+                <styleUrl>#default</styleUrl>
+            </Pair>
+            <Pair>
+                <key>highlight</key>
+                <styleUrl>#hl</styleUrl>
+            </Pair>
+        </StyleMap>
+        <Style id="hl">
+            <IconStyle>
+                <scale>1.2</scale>
+            </IconStyle>
+            <LineStyle>
+                <color>ff0000ff</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
         <Folder>
             <name>path</name>
             <Placemark id="path.1">
@@ -894,11 +919,12 @@ def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
         f.write(kml)
 
 
-import os
-from qgis.core import QgsVectorLayer, QgsProject
 
-
-def csv_como_layer(csv_path, layer_name=None, z_field="altitude(m)"):
+def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
+    """
+    Carrega um CSV exportado pelo plugin como camada de pontos no QGIS.
+    Espera colunas latitude e longitude em EPSG:4326.
+    """
     if not csv_path or not os.path.exists(csv_path):
         return None
 
@@ -907,7 +933,6 @@ def csv_como_layer(csv_path, layer_name=None, z_field="altitude(m)"):
 
     csv_path_uri = csv_path.replace("\\", "/")
 
-    # ===== 1. Carregar CSV (2D)
     uri = (
         f"file:///{csv_path_uri}"
         f"?type=csv"
@@ -919,44 +944,12 @@ def csv_como_layer(csv_path, layer_name=None, z_field="altitude(m)"):
         f"&crs=EPSG:4326"
     )
 
-    layer_2d = QgsVectorLayer(uri, layer_name, "delimitedtext")
+    layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
 
-    if not layer_2d.isValid():
+    if not layer.isValid():
         return None
 
-    # ===== 2. Criar camada PointZ
-    crs = layer_2d.crs().authid()
+    if add_to_project:
+        QgsProject.instance().addMapLayer(layer)
 
-    layer_3d = QgsVectorLayer(f"PointZ?crs={crs}", layer_name + "_3D", "memory")
-    prov = layer_3d.dataProvider()
-
-    # copiar campos
-    prov.addAttributes(layer_2d.fields())
-    layer_3d.updateFields()
-
-    feats = []
-
-    for f in layer_2d.getFeatures():
-        x = f["longitude"]
-        y = f["latitude"]
-
-        # pegar Z
-        z = f[z_field] if z_field in f.fields().names() else 0
-
-        try:
-            z = float(z)
-        except:
-            z = 0
-
-        geom = QgsGeometry.fromPoint(QgsPoint(x, y, z))
-
-        new_feat = QgsFeature(layer_3d.fields())
-        new_feat.setGeometry(geom)
-        new_feat.setAttributes(f.attributes())
-
-        feats.append(new_feat)
-
-    prov.addFeatures(feats)
-    layer_3d.updateExtents()
-
-    return layer_3d
+    return layer
