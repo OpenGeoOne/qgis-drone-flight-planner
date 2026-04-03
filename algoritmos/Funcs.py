@@ -898,6 +898,7 @@ def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
         <Folder>
             <name>path</name>
             <Placemark id="path.1">
+                <styleUrl>#default0</styleUrl>
                 <LineString>
                     <altitudeMode>relativeToGround</altitudeMode>
                     <coordinates>
