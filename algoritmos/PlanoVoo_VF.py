@@ -21,6 +21,7 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtCore import QCoreApplication, QUrl
+import processing
 from ..images.Imgs import *
 import os
 import math
@@ -313,6 +314,20 @@ It enables the planning of a precise vertical trajectory with appropriate overla
     
     
     def postProcessAlgorithm(self, context, feedback):        
+        
+        # ================= Carregar KML no QGIS =================
+        layer_kml = None
+
+        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
+
+            if layer_kml.isValid():
+                QgsProject.instance().addMapLayer(layer_kml)
+                feedback.pushInfo("✅ KML layer added to QGIS.")
+            else:
+                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
+
+        
         # ================= Carregar CSV no QGIS =================
         layer_pontos = None
 
@@ -325,17 +340,12 @@ It enables the planning of a precise vertical trajectory with appropriate overla
                 QgsProject.instance().addMapLayer(layer_pontos)
                 feedback.pushInfo("✅ CSV point layer added to QGIS.")
 
-        # ================= Carregar KML no QGIS =================
-        layer_kml = None
+            try:
+                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
+                processing.run("lftools:magicstyles", params)
+            except:
+                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
 
-        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
-
-            if layer_kml.isValid():
-                QgsProject.instance().addMapLayer(layer_kml)
-                feedback.pushInfo("✅ KML layer added to QGIS.")
-            else:
-                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
 
         # ================= Abrir KML no Google Earth =================
         if hasattr(self, 'abrir_kml') and self.abrir_kml:
