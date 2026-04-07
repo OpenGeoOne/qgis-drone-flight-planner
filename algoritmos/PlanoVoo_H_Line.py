@@ -19,19 +19,29 @@ __copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, arredondar_para_cima, pontos3D
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtCore import QCoreApplication, QUrl
+import processing
 from ..images.Imgs import *
 import os
+import math
+import numpy as np
+
+from .Funcs import (
+    gerar_CSV,
+    meters2degrees,
+    salvar_kml,
+    azimute,
+    loadParametros,
+    saveParametros,
+    csv_como_layer
+)
 
 class PlanoVoo_H_Line(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hVooL, abGroundL, dlL, nLinL, dfL, velocL, tStayL, gimbalL, rasterL, csvL = loadParametros("H_Line")
+        hVooL, abGroundL, dlL, nLinL, dfL, velocL, tStayL, gimbalL, csvL = loadParametros("H_Line")
 
-        self.addParameter(QgsProcessingParameterVectorLayer('linha', 'Axis_Line', types=[QgsProcessing.TypeVectorLine]))
-        
+        self.addParameter(QgsProcessingParameterFeatureSource('linhaRef','Axis Line', types=[QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooL))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)',defaultValue=abGroundL))
@@ -50,26 +60,40 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayL))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalL))
-        self.addParameter(QgsProcessingParameterRasterLayer('raster','Input Raster (if any)', defaultValue=rasterL, optional=True))
-        #self.addParameter(QgsProcessingParameterFolderDestination('saida_kml', 'Output Folder for kml (Google Earth)', defaultValue=skml, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvL))
 
     def processAlgorithm(self, parameters, context, feedback):
-        teste = False # Quando True mostra camadas intermediárias
+
+        # ===== Parâmetros de entrada para variáveis ====================================================
+        linhaRef = self.parameterAsSource(parameters, 'linhaRef', context)
+        altVoo = self.parameterAsDouble(parameters, 'altura', context)
+        n_linhas = parameters['nLinhas']
+        terrain = self.parameterAsBool(parameters, 'aboveGround', context)
+        deltaLat = self.parameterAsDouble(parameters, 'bf', context)
+        deltaFront = self.parameterAsDouble(parameters, 'df', context)
+        velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
+        tempo = self.parameterAsDouble(parameters, 'tempo', context)
+        gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
+        arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
+        abrir_kml = self.parameterAsBool(parameters, 'kml', context)
+        
+        # ===== Verificações =============================================================================
 
         # =====Parâmetros de entrada para variáveis==============================
-        linha_layer = self.parameterAsVectorLayer(parameters, 'linha', context)
-        if not linha_layer:
-            raise QgsProcessingException("❌ Axis line layer is required.")
-    
-        camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
-
-        altVoo = parameters['altura']
-        terrain = parameters['aboveGround']
+        # A camada de entrada deve conter apenas 1 linha
+        if linhaRef.featureCount() != 1:
+            raise QgsProcessingException("❌ Select 1 line feature!")
+        
+        # A geometria da linha deve ser válida
+        feat = next(linhaRef.getFeatures())
+        geom_ref = feat.geometry()
+        if not geom_ref or geom_ref.isEmpty():
+            raise QgsProcessingException("❌ Invalid line geometry!")
+        
         # incluir_eixo  → controla se a linha central participa do voo
         # dois_buffers  → controla se existe 2º offset de cada lado
 
-        n_linhas = parameters['nLinhas']
         if n_linhas == 0:        # 2 linhas
             incluir_eixo = False
             dois_buffers = False
@@ -85,55 +109,12 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         else:
             raise QgsProcessingException("❌ Invalid number of flight lines option.")
 
-        deltaLat = parameters['bf']          # Distância Buffer de voo paralelas - sem cálculo
-        deltaFront = parameters['df']        # Espaçamento Frontal entre as fotografias- sem cálculo
-        velocidade = parameters['velocidade']
-        tempo = parameters['tempo']
-        gimbalAng = parameters['gimbalAng']
-        raster_layer = self.parameterAsRasterLayer(parameters, 'raster', context)
-        arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
-
-        # ===== Verificações =====================================================
-        # Verificar se as camadas estão salvas e fora da edição
-        for lyr, nome in [(linha_layer, 'Axis_Line')]:
-            if lyr.isEditable():
-                raise QgsProcessingException(f"❌ Layer '{nome}' is in edit mode. Please save and exit editing before continuing.")
-            
-            # Detecta camada temporária ou não salva
-            storage_type = lyr.dataProvider().storageType().lower()
-            uri = lyr.dataProvider().dataSourceUri().lower()
-            if storage_type == '' or 'memory:' in uri or '/temporary/' in uri:
-                raise QgsProcessingException(f"❌ Layer '{nome}' is not saved. Save the layer to disk before using it.")
-
         # Verificar caminho das pastas
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
-
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
-            
-        # Verificar as Geometrias
-        if linha_layer.featureCount() != 1:
-            raise QgsProcessingException("❌ The Axis must contain only one line.")
-        
-        # Verificar o SRC das Camadas
-        crs = linha_layer.crs()
-
-        if "UTM" in crs.description().upper():
-            feedback.pushInfo(f"The layer 'Axis' is already in CRS UTM.")
-        elif "WGS 84" in crs.description().upper() or "SIRGAS 2000" in crs.description().upper():
-            crs = verificarCRS(linha_layer, feedback)
-            nome = linha_layer.name() + "_reproject"
-            linha_layer = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-        
-        linha_features = next(linha_layer.getFeatures()) # dados do Eixo (Axis)
-        geom = linha_features.geometry()
-
-        if geom.isEmpty():
-            raise QgsProcessingException("❌ Axis geometry is empty.")
     
         # Grava Parâmetros
         saveParametros("H_Line",
@@ -141,13 +122,23 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
-                        raster=raster_layer.source() if raster_layer else "",
                         csv=arquivo_csv,
                         abGround=parameters['aboveGround'],
                         dl=parameters['bf'],
                         df=parameters['df'],
                         dfop=parameters['nLinhas']
                         )
+
+        # ===============================================================================
+        # Lendo a Linha de Referência da Fachada
+        feat = next(linhaRef.getFeatures())
+        linha_base_geom = feat.geometry()
+        crs = linhaRef.sourceCrs()
+
+        # Reprojetar para WGS 84
+        crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
+        transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
+        linha_base_geom.transform(transformador)
 
         # ===== Normalizar para LineString ==============================================
         def to_linestring(g: QgsGeometry) -> QgsGeometry:
@@ -161,20 +152,20 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                 return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pl])
             return g.convertToSingleType()
 
-        linha_geom = to_linestring(geom)
+        linha_base_geom = to_linestring(geom)
         
         # ===== Offsets laterais (direita/esquerda) =====
         def valid_or_fallback(curve: QgsGeometry) -> QgsGeometry:
             if curve and not curve.isEmpty() and curve.isGeosValid():
                 return to_linestring(curve)
-            return linha_geom
+            return linha_base_geom
         
         if incluir_eixo:
-            linha_direita1 = linha_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-            linha_esquerda1 = linha_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_direita1 = linha_base_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_esquerda1 = linha_base_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
         else:
-            linha_direita1 = linha_geom.offsetCurve(-deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-            linha_esquerda1 = linha_geom.offsetCurve(deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_direita1 = linha_base_geom.offsetCurve(-deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            linha_esquerda1 = linha_base_geom.offsetCurve(deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
 
         linha_direita1 = valid_or_fallback(linha_direita1)
         linha_esquerda1 = valid_or_fallback(linha_esquerda1)
@@ -183,11 +174,11 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         linha_esquerda2 = None
         if dois_buffers:
             if incluir_eixo:
-                linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
-                linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_direita2 = valid_or_fallback(linha_base_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_esquerda2 = valid_or_fallback(linha_base_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
             else:
-                linha_direita2 = valid_or_fallback(linha_geom.offsetCurve(-2*deltaLat + deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
-                linha_esquerda2 = valid_or_fallback(linha_geom.offsetCurve(2*deltaLat - deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_direita2 = valid_or_fallback(linha_base_geom.offsetCurve(-2*deltaLat + deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                linha_esquerda2 = valid_or_fallback(linha_base_geom.offsetCurve(2*deltaLat - deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
 
         # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
         linha_pts = linha_geom.asPolyline()
@@ -213,13 +204,13 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         if lado_inicial == "esquerda":
             pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
             pontos_esquerda1 = gerar_pontos(linha_esquerda1)
-            pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
+            pontos_eixo = gerar_pontos(linha_base_geom) if incluir_eixo else []
             pontos_direita1 = gerar_pontos(linha_direita1)
             pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
         else:
             pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
             pontos_direita1 = gerar_pontos(linha_direita1)
-            pontos_eixo = gerar_pontos(linha_geom) if incluir_eixo else []
+            pontos_eixo = gerar_pontos(linha_base_geom) if incluir_eixo else []
             pontos_esquerda1 = gerar_pontos(linha_esquerda1)
             pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
 
@@ -313,34 +304,6 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         pontos_layer.updateExtents()
         feedback.pushInfo(f"✅ {contador-1} Photo Points generated.")
         
-        # ===== Altitude via MDE =====
-        if camadaMDE:
-            transformadorMDE = QgsCoordinateTransform(pontos_layer.crs(), camadaMDE.crs(), QgsProject.instance())
-            pontos_layer.startEditing()
-            for f in pontos_layer.getFeatures():
-                pt = f.geometry().asPoint()
-                pt_transf = transformadorMDE.transform(QgsPointXY(pt.x(), pt.y()))
-                value, result = camadaMDE.dataProvider().sample(pt_transf, 1)
-                if result:
-                    f["altitude"] = value + altVoo
-                    f["height"] = altVoo
-                    pontos_layer.updateFeature(f)
-            pontos_layer.commitChanges()
-
-        # ===== Reprojetar para WGS84 e aplicar Z =====
-        crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
-        pontos_reproj = reprojeta_camada_WGS84(pontos_layer, crs_wgs, transformador)
-
-        # Point para PointZ
-        if camadaMDE:
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="altitude")
-            pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj, "VH_Line")
-        else:
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-            simbologiaPontos(pontos_reproj)
-            
-            QgsProject.instance().addMapLayer(pontos_reproj)
 
         # ===== Camada de linhas unindo os pontos de cada linha de voo =====
         linhas_voo_layer = QgsVectorLayer(
@@ -395,19 +358,28 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("L", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, altVoo, gimbalAng, terrain, n_linhas)
+            gerar_CSV("L", LISTA_PONTOS, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, altVoo, gimbalAng, terrain, n_linhas)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        
+        # ============= Criar KML do caminho (path) ===============================================        
+        base, ext = os.path.splitext(arquivo_csv)
+        caminho_kml = base + ".kml"
+        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
+
+        self.csv_path = arquivo_csv
+        self.kml_path = caminho_kml
+        self.abrir_kml = abrir_kml
+
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
         feedback.pushInfo("✅ Horizontal Flight Plan successfully executed.")
         feedback.pushInfo("")
         
-        return {}
+        return {'csv': arquivo_csv,
+                'kml': caminho_kml}
 
     def name(self):
         return 'Flight_Plan_H_Line'

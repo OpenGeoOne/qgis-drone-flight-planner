@@ -19,26 +19,33 @@ __copyright__ = '(C) 2024 by Prof Cazaroli and Leandro França (Professor Ilton 
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import gerar_CSV, set_Z_value, reprojeta_camada_WGS84, simbologiaLinhaVoo, simbologiaPontos, simbologiaPontos3D, verificarCRS, loadParametros, saveParametros, removeLayersReproj, arredondar_para_cima, pontos3D
-from ..images.Imgs import *
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtCore import QCoreApplication, QUrl
 import processing
+from ..images.Imgs import *
 import os
 import math
+import numpy as np
+
+from .Funcs import (
+    gerar_CSV,
+    meters2degrees,
+    salvar_kml,
+    azimute,
+    loadParametros,
+    saveParametros,
+    csv_como_layer
+)
 
 class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hVooS, abGroundS, dlS, dfS, velocS, tStayS, gimbalS, rasterS, csvS = loadParametros("H_Sensor")
+        hVooS, abGroundS, dlS, dfS, velocS, tStayS, gimbalS, csvS = loadParametros("H_Sensor")
 
-        self.addParameter(QgsProcessingParameterVectorLayer('terreno', 'Area', types=[QgsProcessing.TypeVectorPolygon]))
-        self.addParameter(QgsProcessingParameterVectorLayer('primeira_linha','First line - direction flight', types=[QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterFeatureSource('terreno', 'Area', types=[QgsProcessing.TypeVectorPolygon]))
+        self.addParameter(QgsProcessingParameterFeatureSource('primeira_linha','First line - direction flight', types=[QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooS))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=abGroundS))
-
-        
         self.addParameter(QgsProcessingParameterNumber('percL','Side Overlap (75% = 0.75)',
                                                        type=QgsProcessingParameterNumber.Double,
                                                        minValue=0.30,maxValue=0.95,defaultValue=dlS))
@@ -51,23 +58,22 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayS))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalS))
-        
-        self.addParameter(QgsProcessingParameterRasterLayer('raster','Input Raster (if any)', defaultValue=rasterS, optional=True))
-
+        self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvS))
 
     def processAlgorithm(self, parameters, context, feedback):
-        teste = False # Quando True mostra camadas intermediárias
-
-        # =====Parâmetros de entrada para variáveis=============================
-        area_layer = self.parameterAsVectorLayer(parameters, 'terreno', context)
-
-        primeira_linha  = self.parameterAsVectorLayer(parameters, 'primeira_linha', context)
-
-        camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
-
-        altVoo = parameters['altura']
-        terrain = parameters['aboveGround']
+        # ===== Parâmetros de entrada para variáveis ====================================================
+        area_layer = self.parameterAsSource(parameters, 'terreno', context)
+        primeira_linha = self.parameterAsSource(parameters, 'primeira_linha', context)
+        altVoo = self.parameterAsDouble(parameters, 'altura', context)
+        terrain = self.parameterAsBool(parameters, 'aboveGround', context)
+        percL = self.parameterAsDouble(parameters, 'percL', context)
+        percF = self.parameterAsDouble(parameters, 'percF', context)
+        velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
+        tempo = self.parameterAsDouble(parameters, 'tempo', context)
+        gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
+        arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
+        abrir_kml = self.parameterAsBool(parameters, 'kml', context)
 
         # Drone Sensor Parameters from QGIS Settings - Calculator
         s = QgsSettings()
@@ -79,103 +85,80 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         feedback.pushInfo("")
         feedback.pushInfo(f"✅ Drone {drone}: sensor_width: {dc} mm - sensor_height: {dl} mm - focal_lenght: {f} mm")
 
-        percL = parameters['percL'] # Lateral
-        percF = parameters['percF'] # Frontal
-        velocidade = parameters['velocidade']
-        tempo = parameters['tempo']
-        gimbalAng = parameters['gimbalAng']
-        raster_layer = self.parameterAsRasterLayer(parameters, 'raster', context)
-        arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
-
         # ===== Verificações =====================================================
 
         # Verificar Drone selecionado
         if drone == "":
             raise QgsProcessingException("❌ Drone is not selected!")
         
-        # Verificar se as camadas estão salvas e fora da edição
-        for lyr, nome in [(area_layer, 'Area'), (primeira_linha, 'First line')]:
-            if lyr.isEditable():
-                raise QgsProcessingException(f"❌ Layer '{nome}' is in edit mode. Please save and exit editing before continuing.")
-            
-            # Detecta camada temporária ou não salva
-            storage_type = lyr.dataProvider().storageType().lower()
-            uri = lyr.dataProvider().dataSourceUri().lower()
-            if storage_type == '' or 'memory:' in uri or '/temporary/' in uri:
-                raise QgsProcessingException(f"❌ Layer '{nome}' is not saved. Save the layer to disk before using it.")
+        # A camada de entrada deve conter apenas 1 polígono
+        if area_layer.featureCount() != 1:
+            raise QgsProcessingException("❌ Select 1 polygon feature!")
+        
+        # A camada de entrada deve conter apenas 1 linha
+        if primeira_linha.featureCount() != 1:
+            raise QgsProcessingException("❌ Select 1 line feature!")
+        
+        # A geometria do polígono deve ser válida
+        poligono_features = next(area_layer.getFeatures())
+        poligono_geom = poligono_features.geometry()
+        if not poligono_geom or poligono_geom.isEmpty():
+            raise QgsProcessingException("❌ Invalid polygon geometry!")
+        if poligono_geom.isMultipart():
+            p = poligono_geom.asMultiPolygon()[0][0]
+        else:
+            p = poligono_geom.asPolygon()[0]
+
+        # A geometria da linha deve ser válida
+        linha_features = next(primeira_linha.getFeatures())
+        linha_geom = linha_features.geometry()
+        if not linha_geom or linha_geom.isEmpty():
+            raise QgsProcessingException("❌ Invalid line geometry!")
+        if linha_geom.isMultipart():
+            linha_geom = linha_geom.asMultiPolyline()[0]  # Primeira linha em multipart
+        else:
+            linha_geom = linha_geom.asPolyline()  # Linha simples
+
+        # Número de vértices da linha linha deve ser igual a 2
+        num_vertices = sum(1 for _ in linha_geom.vertices())
+        if num_vertices != 2:
+            raise QgsProcessingException("❌ The line must contain exactly 2 vertices!")
 
         # Verificar caminho das pastas
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
-
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
-            
-        
-        # Verificar as Geometrias
-        if area_layer.featureCount() != 1:
-            raise QgsProcessingException("❌ The Area must contain one polygon.")
 
-        if primeira_linha.featureCount() != 1:
-            raise QgsProcessingException("❌ The First Line must contain one line.")
-        
-
-        # Verificar o SRC das Camadas
-        crs = area_layer.crs()
-        crsL = primeira_linha.crs() # não usamos o crsL, apenas para verificar a camada
-        if crs != crsL:
-            raise QgsProcessingException("❌ Both layers must be from the same CRS.")
-
-        if "UTM" in crs.description().upper():
-            feedback.pushInfo(f"The layer 'Area' is already in CRS UTM.")
-        elif "WGS 84" in crs.description().upper() or "SIRGAS 2000" in crs.description().upper():
-            crs = verificarCRS(area_layer, feedback)
-            nome = area_layer.name() + "_reproject"
-            area_layer = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-
-        if "UTM" in crsL.description().upper():
-            feedback.pushInfo(f"The layer 'First line - direction flight' is already in CRS UTM.")
-        elif "WGS 84" in crsL.description().upper() or "SIRGAS 2000" in crsL.description().upper():
-            verificarCRS(primeira_linha, feedback)
-            nome = primeira_linha.name() + "_reproject"
-            primeira_linha = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-        
-
-        poligono_features = next(area_layer.getFeatures()) # dados do Terreno
-        poligono_geom = poligono_features.geometry()
-        if poligono_geom.isMultipart():
-            poligono_geom = poligono_geom.asGeometryCollection()[0]
-
-        try:
-            linha_features = next(primeira_linha.getFeatures())
-        except:
-            raise QgsProcessingException("❌ The Line layer must contain one line feature.")
-        linha_geom = linha_features.geometry()
-        if linha_geom.isMultipart():
-            linha_geom = linha_geom.asGeometryCollection()[0]
-
-        # Verificar se os plugins estão instalados (Não está tendo necessidade de nenhum plugin no momento)
-        # plugins_verificar = ["lftools"]
-        # verificar_plugins(plugins_verificar, feedback)
-
-        # Grava Parâmetros
+        # ===== Grava Parâmetros =====================================================
         saveParametros("H_Sensor",
                         h=parameters['altura'],
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
-                        raster=raster_layer.source() if raster_layer else "",
                         csv=arquivo_csv,
                         abGround=parameters['aboveGround'],
                         dl=parameters['percL'],
                         df=parameters['percF'])
 
-         # =====Cálculo das Sobreposições=========================================
+        # ===============================================================================
+        # Reprojetar para WGS 84
+        crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
+        transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
+        poligono_geom.transform(transformador)
+        linha_geom.transform(transformador)
+
+        # Transformar distancias para graus
+        centroide = linha_geom.centroid().asPoint()
+        latitude_ref = centroide.y()
+        percL = meters2degrees(percL, latitude_ref, crs)
+        percF = meters2degrees(percF, latitude_ref, crs)
+        dc = meters2degrees(dc, latitude_ref, crs)
+        dl = meters2degrees(dl, latitude_ref, crs)
+        f = meters2degrees(f, latitude_ref, crs)        
+        
+        # =====Cálculo das Sobreposições=========================================
         # Distância das linhas de voo paralelas - Espaçamento Lateral
         tg_alfa_2 = dc / (2 * f)
         D_lat = dc * altVoo / f

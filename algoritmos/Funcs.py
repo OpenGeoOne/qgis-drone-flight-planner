@@ -460,7 +460,7 @@ def duplicaPontoInicial(layer):
 
    return
 
-def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=None, 
+def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
                    v=None, t=None, abGround=None, dl=None, df=None, dfop=None,
                    altMin=None, nPartesVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
@@ -475,7 +475,6 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "velocS", v)
         s.setValue(prefixo + "tStayS", t)
         s.setValue(prefixo + "gimbalS", gimbal)
-        s.setValue(prefixo + "rasterS", raster)
         s.setValue(prefixo + "csvS", csv)
 
     elif tipoVoo == "H_Manual":
@@ -487,7 +486,6 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "velocM", v)
         s.setValue(prefixo + "tStayM", t)
         s.setValue(prefixo + "gimbalM", gimbal)
-        s.setValue(prefixo + "rasterM", raster)
         s.setValue(prefixo + "csvM", csv)
 
     elif tipoVoo == "H_Manual_RC2_Controller":
@@ -495,7 +493,6 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "abGroundRC2", abGround)
         s.setValue(prefixo + "dlRC2", dl)
         s.setValue(prefixo + "gimbalRC2", gimbal)
-        s.setValue(prefixo + "rasterRC2", raster)
         s.setValue(prefixo + "csvRC2", csv)
 
     elif tipoVoo == "H_Line":
@@ -507,7 +504,6 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "velocL", v)
         s.setValue(prefixo + "tStayL", t)
         s.setValue(prefixo + "gimbalL", gimbal)
-        s.setValue(prefixo + "rasterL", raster)
         s.setValue(prefixo + "csvL", csv)
 
     elif tipoVoo == "VF":
@@ -519,10 +515,10 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "velocVF", v)
         s.setValue(prefixo + "tStayVF", t)
         s.setValue(prefixo + "gimbalVF", gimbal)
-        s.setValue(prefixo + "rasterVF", raster)
         s.setValue(prefixo + "csvVF", csv)
 
     elif tipoVoo == "VC":
+        s.setValue(prefixo + "pontoInicialVC", pontoInicial)
         s.setValue(prefixo + "hObjVC", h)
         s.setValue(prefixo + "altMinVC", altMin)
         s.setValue(prefixo + "nPartesVC", nPartesVC)
@@ -530,13 +526,11 @@ def saveParametros(tipoVoo, h=None, dist=None, gimbal=None, raster=None, csv=Non
         s.setValue(prefixo + "velocVC", v)
         s.setValue(prefixo + "tStayVC", t)
         s.setValue(prefixo + "gimbalVC", gimbal)
-        s.setValue(prefixo + "rasterVC", raster)
         s.setValue(prefixo + "csvVC", csv)
 
     elif tipoVoo == "H_Simplified":
         s.setValue(prefixo + "csvInSimplified", csvI)
         s.setValue(prefixo + "csvOutSimplified", csv)
-        s.setValue(prefixo + "rasterSimplified", raster)
         s.setValue(prefixo + "CRSSimplified", crs)
         s.setValue(prefixo + "toleranceSimplified", tol)
         s.setValue(prefixo + "addPCsvSimplified", add1)
@@ -562,7 +556,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "velocS", 8),
             s.value(prefixo + "tStayS", 0),
             s.value(prefixo + "gimbalS", -90),
-            s.value(prefixo + "rasterS", ""),
             s.value(prefixo + "csvS", "")
         )
 
@@ -576,7 +569,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "velocM", 8),
             s.value(prefixo + "tStayM", 0),
             s.value(prefixo + "gimbalM", -90),
-            s.value(prefixo + "rasterM", ""),
             s.value(prefixo + "csvM", "")
         )
 
@@ -586,7 +578,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "abGroundRC2", True),
             s.value(prefixo + "dlRC2", 10),
             s.value(prefixo + "gimbalRC2", -90),
-            s.value(prefixo + "rasterRC2", ""),
             s.value(prefixo + "csvRC2", "")
         )
     
@@ -600,7 +591,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "velocL", 8),
             s.value(prefixo + "tStayL", 0),
             s.value(prefixo + "gimbalL", -90),
-            s.value(prefixo + "rasterL", ""),
             s.value(prefixo + "csvL", "")
         )
 
@@ -614,12 +604,12 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "velocVF", 1),
             s.value(prefixo + "tStayVF", 2),
             s.value(prefixo + "gimbalVF", 0),
-            s.value(prefixo + "rasterVF", ""),
             s.value(prefixo + "csvVF", "")
         )
 
     elif tipoVoo == "VC":
         return (
+            s.value(prefixo + "pontoInicialVC", 0),
             s.value(prefixo + "hObjVC", 15),
             s.value(prefixo + "altMinVC", 2.5),
             s.value(prefixo + "nPartesVC", 8),
@@ -627,7 +617,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "velocVC", 1),
             s.value(prefixo + "tStayVC", 2),
             s.value(prefixo + "gimbalVC", 0),
-            s.value(prefixo + "rasterVC", ""),
             s.value(prefixo + "csvVC", "")
         )
     
@@ -635,7 +624,6 @@ def loadParametros(tipoVoo):
         return (
             s.value(prefixo + "csvInSimplified", ""),
             s.value(prefixo + "csvOutSimplified", ""),
-            s.value(prefixo + "rasterSimplified", ""),
             s.value(prefixo + "toleranceSimplified", 15.0),
             s.value(prefixo + "addPCsvSimplified", False),
             s.value(prefixo + "addPSimplified", False),

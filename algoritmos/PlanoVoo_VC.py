@@ -19,35 +19,31 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import (
-    gerar_CSV,
-    set_Z_value,
-    reprojeta_camada_WGS84,
-    simbologiaLinhaVoo,
-    simbologiaPontos,
-    simbologiaPontos3D,
-    verificarCRS,
-    loadParametros,
-    saveParametros,
-    removeLayersReproj,
-    pontos3D,
-    duplicaPontoInicial
-)
-from ..images.Imgs import *
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtCore import QCoreApplication, QUrl
 import processing
+from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
+from .Funcs import (
+    gerar_CSV,
+    meters2degrees,
+    salvar_kml,
+    azimute,
+    loadParametros,
+    saveParametros,
+    csv_como_layer
+)
+
 class PlanoVoo_VC(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hObjVC, altMinVC, nPartesVC, dVertVC, velocVC, tStayVC, gimbalVC, rasterVC, csvVC = loadParametros("VC")
+        pontoInicialVC, hObjVC, altMinVC, nPartesVC, dVertVC, velocVC, tStayVC, gimbalVC, csvVC = loadParametros("VC")
 
-        self.addParameter(QgsProcessingParameterVectorLayer('circulo_base','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
-        self.addParameter(QgsProcessingParameterVectorLayer('ponto_inicial','Start Point', types=[QgsProcessing.TypeVectorPoint]))
+        self.addParameter(QgsProcessingParameterFeatureSource('circuloRef','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
+        self.addParameter(QgsProcessingParameterNumber('ponto_inicial','Start Point (0 a 359 degrees)',
+                                                       type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=359,defaultValue=pontoInicialVC))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber('altura','Object Height (m)',
@@ -64,356 +60,157 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayVC))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalVC))
-        self.addParameter(QgsProcessingParameterRasterLayer('raster','Input Raster (if any)', defaultValue=rasterVC, optional=True))
-        #self.addParameter(QgsProcessingParameterFolderDestination('saida_kml', 'Output Folder for kml (Google Earth)', defaultValue=skml, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvVC))
 
     def processAlgorithm(self, parameters, context, feedback):
-        teste = False # Quando True mostra camadas intermediárias
 
         # ===== Parâmetros de entrada para variáveis ===========================================
-        circulo_base = self.parameterAsVectorLayer(parameters, 'circulo_base', context)
-
-        ponto_inicial = self.parameterAsVectorLayer(parameters, 'ponto_inicial', context)
-
-        camadaMDE = self.parameterAsRasterLayer(parameters, 'raster', context)
-
-        H = parameters['altura']
-        h = parameters['alturaMin']
-        terrain = parameters['aboveGround']
-        inverte = parameters['inverte']
-        numpartes = parameters['numpartes'] # deltaH será calculado
-        deltaV = parameters['deltaVertical']
-        velocidade = parameters['velocidade']
-        tempo = parameters['tempo']
-        gimbalAng = parameters['gimbalAng']
-        raster_layer = self.parameterAsRasterLayer(parameters, 'raster', context)
+        circuloRef = self.parameterAsSource(parameters, 'circuloRef', context)
+        ponto_inicial = self.parameterAsInteger(parameters, 'ponto_inicial', context)
+        H = self.parameterAsDouble(parameters, 'altura', context)
+        h = self.parameterAsDouble(parameters, 'alturaMin', context)
+        terrain = self.parameterAsBool(parameters, 'aboveGround', context)
+        inverte = self.parameterAsBool(parameters, 'inverte', context)
+        numpartes = self.parameterAsInteger(parameters, 'numpartes', context) # deltaH será calculado
+        deltaV = self.parameterAsDouble(parameters, 'deltaVertical', context)
+        velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
+        tempo = self.parameterAsDouble(parameters, 'tempo', context)
+        gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
         arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
+        abrir_kml = self.parameterAsBool(parameters, 'kml', context)
 
         # ===== Verificações ==================================================================
-        # Verificar se as camadas estão salvas e fora da edição
-        for lyr, nome in [(circulo_base, 'Flight Base Circle'), (ponto_inicial, 'Start Point')]:
-            if lyr.isEditable():
-                raise QgsProcessingException(f"❌ Layer '{nome}' is in edit mode. Please save and exit editing before continuing.")
-            
-            # Detecta camada temporária ou não salva
-            storage_type = lyr.dataProvider().storageType().lower()
-            uri = lyr.dataProvider().dataSourceUri().lower()
-            if storage_type == '' or 'memory:' in uri or '/temporary/' in uri:
-                raise QgsProcessingException(f"❌ Layer '{nome}' is not saved. Save the layer to disk before using it.")
-
+        if circuloRef.featureCount() != 1:
+            raise QgsProcessingException("❌ Select 1 circle feature!")
+        
+        # A geometria da linha deve ser válida
+        feat = next(circuloRef.getFeatures())
+        geom_ref = feat.geometry()
+        if not geom_ref or geom_ref.isEmpty():
+            raise QgsProcessingException("❌ Invalid circle geometry!")
+        
         # Verificar caminho das pastas
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
-
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
-            
-        # Verificar as Geometrias
-        if circulo_base.featureCount() != 1:
-            raise QgsProcessingException("❌ Flight base Circle must contain only one circle.")
-
-        if ponto_inicial.featureCount() != 1:
-            raise QgsProcessingException("❌ Start Point must contain only one point.")
-        
-        # Verificar o SRC das Camadas
-        crs = circulo_base.crs()
-        crsP = ponto_inicial.crs() # não usamos o crsP, apenas para verificar a camada
-        if crs != crsP:
-            raise QgsProcessingException("❌ Both layers must be from the same CRS.")
-
-        if "UTM" in crs.description().upper():
-            feedback.pushInfo(f"The layer 'Flight Base Circle' is already in CRS UTM.")
-        elif "WGS 84" in crs.description().upper() or "SIRGAS 2000" in crs.description().upper():
-            crs = verificarCRS(circulo_base, feedback)
-            nome = circulo_base.name() + "_reproject"
-            circulo_base = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
-
-        if "UTM" in crsP.description().upper():
-            feedback.pushInfo(f"The layer 'Start Point' is already in CRS UTM.")
-            ponto_inicial_move = self.parameterAsVectorLayer(parameters, 'ponto_inicial', context)
-        elif "WGS 84" in crsP.description().upper() or "SIRGAS 2000" in crsP.description().upper():
-            verificarCRS(ponto_inicial, feedback)
-            nome = ponto_inicial.name() + "_reproject"
-            ponto_inicial = QgsProject.instance().mapLayersByName(nome)[0]
-
-            duplicaPontoInicial(ponto_inicial)
-            nome = ponto_inicial.name() + "_move"
-            ponto_inicial_move = QgsProject.instance().mapLayersByName(nome)[0]
-        else:
-            raise QgsProcessingException(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({crs.description().upper()}) not supported")
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VC",
+                        ponto_inicial=parameters['ponto_inicial'],
                         h=parameters['altura'],
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
-                        raster=raster_layer.source() if raster_layer else "",
                         csv=arquivo_csv,
                         altMin=parameters['alturaMin'],
                         nPartesVC=parameters['numpartes'],
                         dVertVC=parameters['deltaVertical'])
 
-        # ===== Cálculos Iniciais ================================================
-
-        # Determina as alturas das linhas de Voo
-        c = next(circulo_base.getFeatures())
-        circulo_base_geom = c.geometry()
-        if circulo_base_geom.isMultipart():
-            circulo_base_geom = circulo_base_geom.asGeometryCollection()[0]
-
-        p = next(ponto_inicial.getFeatures())
-        ponto_inicial_geom = p.geometry()
-        if ponto_inicial_geom.isMultipart():
-            ponto_inicial_geom = ponto_inicial_geom.asGeometryCollection()[0]
-
-        # Cálculo do deltaH
-        bounding_box = circulo_base_geom.boundingBox()
-        centro = bounding_box.center()
-        raio = bounding_box.width() / 2
-        comprimento_circulo = circulo_base_geom.length()
-        deltaH = comprimento_circulo / numpartes
-
-        alturas = list(np.arange(h, H + h + deltaV, deltaV))
-
-        if inverte:
-            alturas = list(reversed(alturas))
-
-        feedback.pushInfo(f"✅ Height: {H}, Horizontal Spacing: {round(deltaH,2)}, Vertical Spacing: {deltaV}")
-
-        # =========================================================================
-        # Reprojetar para WGS 84 (EPSG:4326), usado pelo OpenTopography
+        # ===============================================================================
+        # Reprojetar para WGS 84
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
         transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
+        circulo_base_geom.transform(transformador)
 
-        # =========================================================================
-        # ===== Criar linha inscrita ==============================================
-        # Calcular vértices da linha inscrita
-        pontos = []
-        for i in range(numpartes):
-            angulo = math.radians(360 / numpartes * i)
-            x = centro.x() + raio * math.cos(angulo)
-            y = centro.y() + raio * math.sin(angulo)
-            pontos.append(QgsPointXY(x, y))
-
-        # Fechar a linha adicionando o primeiro ponto no final
-        pontos_linha = pontos + [pontos[0]]
-
-        # Criar geometria da linha fechada
-        line_geometry = QgsGeometry.fromPolylineXY(pontos_linha)
-
-        # ===============================================================================
-        # ===== Criar a camada "Flight Line" ===========================================
-
-        linhas_circulares_layer = QgsVectorLayer('LineString?crs=' + crs.authid(), 'Flight Line', 'memory')
-        linhas_circulares_provider = linhas_circulares_layer.dataProvider()
-
-        # Definir campos
-        campos = QgsFields()
-        campos.append(QgsField("id", QVariant.Int))
-        campos.append(QgsField("height", QVariant.Double))
-        linhas_circulares_provider.addAttributes(campos)
-        linhas_circulares_layer.updateFields()
-
-        linhas_circulares_layer.startEditing()
-
-        # Adicionar linhas com alturas diferentes
-        linha_id = 1
-        for altura in alturas:
-            feature = QgsFeature()
-            feature.setGeometry(line_geometry)
-            feature.setAttributes([linha_id, altura])
-            linhas_circulares_provider.addFeature(feature)
-            linha_id += 1
-
-        linhas_circulares_layer.commitChanges()
-        linhas_circulares_layer.updateExtents()
-
-        # Reprojetar linha Voo para WGS84 (4326)
-        linha_voo_reproj = reprojeta_camada_WGS84(linhas_circulares_layer, crs_wgs, transformador)
-
-        # LineString para LineStringZ
-        linha_voo_reproj = set_Z_value(linha_voo_reproj, z_field="height")
-
-        # Configurar simbologia
-        simbologiaLinhaVoo('VC', linha_voo_reproj)
-
-        # ===== LINHA VOO =================================
-        QgsProject.instance().addMapLayer(linha_voo_reproj)
-
-        feedback.pushInfo("")
-        feedback.pushInfo("✅ Flight Line generated.")
-
-        # ==========================================================================================
-        # =====Criar a camada Pontos de Fotos=======================================================
-
-        # Determinar o vértice mais próximo ao ponto inicial e depois deslocar
-        ponto_inicial_xy = ponto_inicial_geom.asPoint()
-        menor_distancia = float('inf')
-        vertice_mais_proximo = None
-
-        for vertice in pontos:
-            distancia = math.sqrt((vertice.x() - ponto_inicial_xy.x())**2 + (vertice.y() - ponto_inicial_xy.y())**2)
-            if distancia < menor_distancia:
-                menor_distancia = distancia
-                vertice_mais_proximo = vertice
-
-        # Atualizar o ponto inicial para o vértice mais próximo
-        novo_ponto_inicial_geom = QgsGeometry.fromPointXY(vertice_mais_proximo)
-
-        camada_ponto_inicial_provider = ponto_inicial_move.dataProvider()
-
-        ponto_inicial_move.startEditing()
-
-        # Atualizar a geometria do ponto inicial para o vértice mais próximo
-        for feature in ponto_inicial_move.getFeatures():
-            if feature.geometry().asPoint() == ponto_inicial_xy:
-                # Atualizar a geometria do ponto inicial
-                feature.setGeometry(novo_ponto_inicial_geom)
-                ponto_inicial_move.updateFeature(feature)
-                break
-
-        ponto_inicial_move.commitChanges()
-        ponto_inicial_move.triggerRepaint()
-
-        # Criar uma camada Pontos com os deltaH sobre o Círculo Base e depois empilhar com os deltaH
-        pontos_fotos = QgsVectorLayer('Point?crs=' + crs.authid(), 'Photo Points', 'memory')
-        pontos_provider = pontos_fotos.dataProvider()
-
-        # Definir campos
-        campos = QgsFields()
-        campos.append(QgsField("id", QVariant.Int))
-        campos.append(QgsField("linha", QVariant.Int))
-        campos.append(QgsField("latitude", QVariant.Double))
-        campos.append(QgsField("longitude", QVariant.Double))
-        campos.append(QgsField("altitude", QVariant.Double))
-        campos.append(QgsField("height", QVariant.Double))
-        campos.append(QgsField("bowangle", QVariant.Double))
-        pontos_provider.addAttributes(campos)
-        pontos_fotos.updateFields()
-
-        pontos_fotos.startEditing()
-
-        pontoID = 1
-
-        # Criar os vértices da primeira carreira de pontos
-        features = linhas_circulares_layer.getFeatures()
-        feature = next(features)
-        line_geom = feature.geometry()
-        vertices = list(line_geom.vertices())
-
-        # Remover o último vértice repetido da linha fechada
-        if len(vertices) > 1 and QgsPointXY(vertices[0]) == QgsPointXY(vertices[-1]):
-            vertices = vertices[:-1]
-
-        # Garantir que os vértices estejam no sentido horário
-        # Usa o polígono equivalente apenas para verificar orientação
-        polygon_check = QgsGeometry.fromPolygonXY([[QgsPointXY(v.x(), v.y()) for v in vertices]])
-        if polygon_check.area() > 0:
-            vertices.reverse()
-
-        # Determinar o ponto inicial
-        ponto_inicial_geom = ponto_inicial_move.getFeatures().__next__().geometry()
-        ponto_inicial = ponto_inicial_geom.asPoint()
-
-        # Verificar qual vértice o ponto inicial coincide
-        idx_ponto_inicial = None
-        for i, v in enumerate(vertices):
-            if QgsPointXY(v).distance(ponto_inicial) < 1e-6:
-                idx_ponto_inicial = i
-                break
-
-        # Se o ponto inicial está na posição 0 não precisamos fazer nada; só verificar a ordem a seguir
-        if idx_ponto_inicial is not None and idx_ponto_inicial != 0:
-            vertices_reordenados = vertices[idx_ponto_inicial:] + vertices[:idx_ponto_inicial]
+        # Obter Centro e Raio para o Cálculo Circular
+        centroide = circulo_base_geom.centroid().asPoint()
+        cx, cy = centroide.x(), centroide.y()
+        
+        # Cálculo do Raio: Distância do centro ao primeiro vértice da borda do círculo
+        if circulo_base_geom.isMultipart():
+            ponto_borda = circulo_base_geom.asMultiPolyline()[0][0]
         else:
-            vertices_reordenados = vertices
+            ponto_borda = circulo_base_geom.asPolyline()[0]
+        
+        raio = math.sqrt((ponto_borda.x() - cx)**2 + (ponto_borda.y() - cy)**2)
 
-        # Criar os pontos para as outras linhas de Voo
-        for idx, altura in enumerate(alturas, start=1):
-            for v in vertices_reordenados:
-                ponto_geom = QgsGeometry.fromPointXY(QgsPointXY(v.x(), v.y()))
+        # Gerar a LISTA base de pontos sobre o círculo (divisão por numPartes)
+        LISTA_BASE = []
+        passo_angular = 360.0 / numPartes      
 
-                # Obter altitude do MDE
-                param_kml = 'relativeToGround'
-                if camadaMDE:
-                    param_kml = 'absolute'
-                    transformadorMDE = QgsCoordinateTransform(linhas_circulares_layer.crs(), camadaMDE.crs(), QgsProject.instance())
-                    ponto_mde = transformadorMDE.transform(QgsPointXY(v.x(), v.y()))
-                    value, result = camadaMDE.dataProvider().sample(QgsPointXY(ponto_mde), 1)
-                    a = value if result else 0
-                else:
-                    a = 0
+        for i in range(numPartes):
+            # Ângulo atual em graus (iniciando do Norte/0°)
+            angulo_graus = i * passo_angular
+            angulo_rad = math.radians(angulo_graus)
 
-                # Calcular o ângulo do ponto
-                centroide = circulo_base_geom.centroid().asPoint()
-                dx = v.x() - centroide.x()
-                dy = v.y() - centroide.y()
-                angulo_rad = math.atan2(dx, dy)
-                angulo_graus = math.degrees(angulo_rad)
-                angulo = (angulo_graus + 180) % 360
+            # Coordenadas sobre a linha circular (X=seno, Y=cosseno para Azimute Norte)
+            px = cx + raio * math.sin(angulo_rad)
+            py = cy + raio * math.cos(angulo_rad)
 
-                Ponto_Geo = transformador.transform(QgsPointXY(v.x(), v.y()))
-                ponto_feature = QgsFeature()
-                ponto_feature.setFields(campos)
-                ponto_feature.setAttribute("id", pontoID)
-                ponto_feature.setAttribute("linha", idx)
-                ponto_feature.setAttribute("latitude", Ponto_Geo.y())
-                ponto_feature.setAttribute("longitude", Ponto_Geo.x())
-                ponto_feature.setAttribute("altitude", a + float(altura))
-                ponto_feature.setAttribute("height", float(altura))
-                ponto_feature.setAttribute("bowangle", angulo)
-                ponto_feature.setGeometry(ponto_geom)
-                pontos_provider.addFeature(ponto_feature)
+            # Cálculo do Bow Angle: O drone deve olhar para o centro do círculo
+            # Vetor do ponto (px, py) para o centro (cx, cy)
+            dx = cx - px
+            dy = cy - py
+            # math.atan2(dx, dy) retorna o azimute em radianos para o sistema náutico
+            azimute_para_centro = math.degrees(math.atan2(dx, dy)) % 360
 
-                pontoID += 1
+            LISTA_BASE.append({
+                'longitude': float(px),
+                'latitude': float(py),
+                'height': 0.0,
+                'bowangle': int(azimute_para_centro),
+                'angulo_referencia': angulo_graus
+            })
 
-        # Atualizar a camada
-        pontos_fotos.commitChanges()
-        pontos_fotos.updateExtents()
+        # Ajustar Ponto Inicial baseado no Azimute fornecido (ponto_inicial_az)
+        # Encontra o índice na lista que mais se aproxima do azimute inicial desejado
+        idx_inicio = min(range(len(LISTA_BASE)), 
+                        key=lambda i: abs(LISTA_BASE[i]['angulo_referencia'] - (ponto_inicial_az % 360)))
+        
+        # Rotaciona a lista para começar no ponto do azimute escolhido
+        LISTA_BASE = LISTA_BASE[idx_inicio:] + LISTA_BASE[:idx_inicio]
 
-        # Reprojetar camada Pontos Fotos de UTM para WGS84 (4326)
-        pontos_reproj = reprojeta_camada_WGS84(pontos_fotos, crs_wgs, transformador)
+        # Gerar as linhas de voo paralelas (Alturas) - Alturas de h até H com espaçamento dVertVC
+        alturas = np.arange(h, H + dVertVC, dVertVC)
+        
+        if inverte:
+            alturas = alturas[::-1] # De cima para baixo se REVERSE estiver ticado
 
-        # Point para PointZ
-        if param_kml == 'absolute':
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-            pontos_reproj = pontos3D(pontos_reproj)
-            simbologiaPontos3D(pontos_reproj, "VC")
-        else:
-            pontos_reproj = set_Z_value(pontos_reproj, z_field="height")
-            simbologiaPontos(pontos_reproj)
+        LISTA_PONTOS = []
+        direcao = 1 # Controle para efeito snake (zigue-zague)
+
+        for alt in alturas:
+            # Itera sobre a LISTA_BASE seguindo a direção atual
+            fatiada = LISTA_BASE[::direcao]
+            for pnt in fatiada:
+                novo_pnt = pnt.copy()
+                novo_pnt['height'] = float(alt)
+                # Remove o dado auxiliar de ordenação para limpar a saída
+                del novo_pnt['angulo_referencia']
+                LISTA_PONTOS.append(novo_pnt)
             
-            QgsProject.instance().addMapLayer(pontos_reproj)
-
-        feedback.pushInfo("")
-        feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
+            # Inverte a direção para a próxima altura (snake pattern)
+            direcao *= -1
 
         # ============= L I T C H I ================================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'):
-            gerar_CSV("VC", pontos_reproj, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng, terrain)
+            gerar_CSV("VC", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng, terrain)
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        # ============= Remover Camadas Reproject e Move =============================================
+        # ============= Criar KML do caminho (path) ===============================================        
+        base, ext = os.path.splitext(arquivo_csv)
+        caminho_kml = base + ".kml"
+        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
 
-        removeLayersReproj('_reproject')
-        removeLayersReproj('_move')
+        self.csv_path = arquivo_csv
+        self.kml_path = caminho_kml
+        self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
         feedback.pushInfo("✅ Circular Vertical Flight Plan successfully executed.")
         feedback.pushInfo("")
-
-        return {}
+        
+        return {'csv': arquivo_csv,
+                'kml': caminho_kml}
 
     def name(self):
         return 'Flight_Plan_VC'

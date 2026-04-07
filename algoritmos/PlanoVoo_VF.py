@@ -39,7 +39,7 @@ from .Funcs import (
 
 class PlanoVoo_VF(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        distVF, hObjVF, altMinVF, dlVF, dfVF, velocVF, tStayVF, gimbalVF, rasterVF, csvVF = loadParametros("VF")
+        distVF, hObjVF, altMinVF, dlVF, dfVF, velocVF, tStayVF, gimbalVF, csvVF = loadParametros("VF")
 
         self.addParameter(QgsProcessingParameterFeatureSource('linhaRef','Position of the Line on the Facade', types=[QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('dist','Distance from the Facade Flight Line (m)',
@@ -113,7 +113,6 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
-                        raster="", # não usar esse parâmetro!!!!
                         csv=arquivo_csv,
                         altMin=parameters['alturaMin'],
                         dl=parameters['dl'],
