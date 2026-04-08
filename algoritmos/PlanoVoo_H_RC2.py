@@ -635,7 +635,6 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         return {'csv': arquivo_csv,
                 'kml': caminho_kml}
 
-
     def name(self):
         return 'Flight_Plan_H_RC2'
 
@@ -665,11 +664,11 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
 <p>The CSV file can then be used with <b>Litchi Utilities</b> to generate a <b>KMZ</b> file for use in the <b>DJI Fly</b> app — extremely useful for drones equipped with the <b>RC2 Controller</b>, such as the <b>Mini 4 e 5 Pro, Air 3, Air 3S</b>, and <b>Mavic 3</b>.</p>
 """
 
-    figura2 = 'images/Terrain_Follow.jpg'
+    figura = 'images/Terrain_Follow.jpg'
 
     def shortHelpString(self):
         corpo = '''<div align="center">
-                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +'''">
                       </div>
                       <div align="right">
                       <p><b>Learn more:</b><o:p></o:p></p>
@@ -685,3 +684,51 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
                       </div>
                     </div>'''
         return self.tr(self.texto) + corpo
+    
+    
+    def postProcessAlgorithm(self, context, feedback):        
+        
+        # ================= Carregar KML no QGIS =================
+        layer_kml = None
+
+        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
+
+            if layer_kml.isValid():
+                QgsProject.instance().addMapLayer(layer_kml)
+                feedback.pushInfo("✅ KML layer added to QGIS.")
+            else:
+                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
+
+        
+        # ================= Carregar CSV no QGIS =================
+        layer_pontos = None
+
+        if hasattr(self, 'csv_path') and self.csv_path:
+            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
+
+            if layer_pontos is None or not layer_pontos.isValid():
+                feedback.reportError("❌ Could not load CSV as point layer.")
+            else:
+                QgsProject.instance().addMapLayer(layer_pontos)
+                feedback.pushInfo("✅ CSV point layer added to QGIS.")
+
+            try:
+                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
+                processing.run("lftools:magicstyles", params)
+            except:
+                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
+
+
+        # ================= Abrir KML no Google Earth =================
+        if hasattr(self, 'abrir_kml') and self.abrir_kml:
+            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
+                if ok:
+                    feedback.pushInfo("✅ KML opened with the default application.")
+                else:
+                    feedback.reportError("⚠️ Could not open the KML automatically.")
+            else:
+                feedback.reportError("⚠️ KML path not found.")
+
+        return {}

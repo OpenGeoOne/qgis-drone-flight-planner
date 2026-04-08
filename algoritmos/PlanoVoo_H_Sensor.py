@@ -639,27 +639,33 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         feedback.pushInfo("")
         feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
 
-        # =============L I T C H I==========================================================
+        # ============= L I T C H I ==========================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("H", pontos_reproj, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront,2), 360, altVoo, gimbalAng, terrain)
+            gerar_CSV("H", LISTA_PONTOS, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront,2), 360, altVoo, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        # ============= Remover Camadas Reproject ===================================================
+        # ============= Criar KML do caminho (path) ===============================================        
+        base, ext = os.path.splitext(arquivo_csv)
+        caminho_kml = base + ".kml"
+        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
 
-        removeLayersReproj('_reproject')
+        self.csv_path = arquivo_csv
+        self.kml_path = caminho_kml
+        self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
-        feedback.pushInfo("✅ Horizontal Flight Plan successfully executed.")
+        feedback.pushInfo("✅ Horizontal Flight Sensor Plan successfully executed.")
         feedback.pushInfo("")
 
-        return {}
+        return {'csv': arquivo_csv,
+                'kml': caminho_kml}
 
     def name(self):
         return 'Flight_Plan_H_Sensor'
@@ -685,7 +691,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Horizontal.png'))
     
-    figura2 = 'images/Terrain_Follow.jpg'
+    figura = 'images/Terrain_Follow.jpg'
 
     def shortHelpString(self):
         s = QgsSettings()
@@ -704,7 +710,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
 
         corpo = f'''
         <div align="center">
-            <img src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2)}">
+            <img src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura)}">
         </div>
         <div align="right">
             <p><b>Learn more:</b></p>
@@ -719,5 +725,52 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
             <p><i>"Automated, easy and straight to the point mapping is at GeoOne!"</i></p>
         </div>
         '''
-
         return self.tr(texto) + corpo
+    
+
+    def postProcessAlgorithm(self, context, feedback):        
+        
+        # ================= Carregar KML no QGIS =================
+        layer_kml = None
+
+        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
+
+            if layer_kml.isValid():
+                QgsProject.instance().addMapLayer(layer_kml)
+                feedback.pushInfo("✅ KML layer added to QGIS.")
+            else:
+                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
+
+        
+        # ================= Carregar CSV no QGIS =================
+        layer_pontos = None
+
+        if hasattr(self, 'csv_path') and self.csv_path:
+            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
+
+            if layer_pontos is None or not layer_pontos.isValid():
+                feedback.reportError("❌ Could not load CSV as point layer.")
+            else:
+                QgsProject.instance().addMapLayer(layer_pontos)
+                feedback.pushInfo("✅ CSV point layer added to QGIS.")
+
+            try:
+                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
+                processing.run("lftools:magicstyles", params)
+            except:
+                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
+
+
+        # ================= Abrir KML no Google Earth =================
+        if hasattr(self, 'abrir_kml') and self.abrir_kml:
+            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
+                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
+                if ok:
+                    feedback.pushInfo("✅ KML opened with the default application.")
+                else:
+                    feedback.reportError("⚠️ Could not open the KML automatically.")
+            else:
+                feedback.reportError("⚠️ KML path not found.")
+
+        return {}
