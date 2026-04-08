@@ -34,7 +34,11 @@ from .Funcs import (
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer
+    csv_como_layer,
+    distancia,
+    pontos_na_linha,
+    heading_para_proximo,
+    pontos_conexao
 )
 
 class PlanoVoo_H_Line(QgsProcessingAlgorithm):
@@ -80,43 +84,29 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         
         # ===== Verificações =============================================================================
 
-        # =====Parâmetros de entrada para variáveis==============================
-        # A camada de entrada deve conter apenas 1 linha
         if linhaRef.featureCount() != 1:
             raise QgsProcessingException("❌ Select 1 line feature!")
-        
-        # A geometria da linha deve ser válida
+
         feat = next(linhaRef.getFeatures())
         geom_ref = feat.geometry()
         if not geom_ref or geom_ref.isEmpty():
             raise QgsProcessingException("❌ Invalid line geometry!")
-        
-        # incluir_eixo  → controla se a linha central participa do voo
-        # dois_buffers  → controla se existe 2º offset de cada lado
 
-        if n_linhas == 0:        # 2 linhas
-            incluir_eixo = False
-            dois_buffers = False
-        elif n_linhas == 1:      # 3 linhas (com eixo)
-            incluir_eixo = True
-            dois_buffers = False
-        elif n_linhas == 2:      # 4 linhas
-            incluir_eixo = False
-            dois_buffers = True
-        elif n_linhas == 3:      # 5 linhas (com eixo)
-            incluir_eixo = True
-            dois_buffers = True
-        else:
-            raise QgsProcessingException("❌ Invalid number of flight lines option.")
+        num_vertices = sum(1 for _ in geom_ref.vertices())
+        if num_vertices < 2:
+            raise QgsProcessingException("❌ The line must contain at least 2 vertices!")
 
-        # Verificar caminho das pastas
+        # n_linhas: 0=2 linhas, 1=3 linhas (eixo), 2=4 linhas, 3=5 linhas (eixo)
+        incluir_eixo = n_linhas in (1, 3)
+        dois_buffers = n_linhas in (2, 3)
+
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
         if arquivo_csv:
             if not os.path.exists(os.path.dirname(arquivo_csv)):
                 raise QgsProcessingException("❌ Path to CSV file does not exist!")
     
-        # Grava Parâmetros
+        # ===== Grava Parâmetros =====================================================
         saveParametros("H_Line",
                         h=parameters['altura'],
                         v=parameters['velocidade'],
@@ -130,7 +120,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                         )
 
         # ===============================================================================
-        # Lendo a Linha de Referência da Fachada
+        # Lendo a Linha de Referência do trajeto de voo
         feat = next(linhaRef.getFeatures())
         linha_base_geom = feat.geometry()
         crs = linhaRef.sourceCrs()
@@ -140,225 +130,84 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
         linha_base_geom.transform(transformador)
 
-        # ===== Normalizar para LineString ==============================================
-        def to_linestring(g: QgsGeometry) -> QgsGeometry:
-            if g.isMultipart():
-                ml = g.asMultiPolyline()
-                if ml:
-                    longest = max(ml, key=lambda pts: QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pts]).length())
-                    return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in longest])
-            pl = g.asPolyline()
-            if pl:
-                return QgsGeometry.fromPolylineXY([QgsPointXY(p.x(), p.y()) for p in pl])
-            return g.convertToSingleType()
-
-        linha_base_geom = to_linestring(geom)
-        
-        # ===== Offsets laterais (direita/esquerda) =====
-        def valid_or_fallback(curve: QgsGeometry) -> QgsGeometry:
-            if curve and not curve.isEmpty() and curve.isGeosValid():
-                return to_linestring(curve)
-            return linha_base_geom
-        
-        if incluir_eixo:
-            linha_direita1 = linha_base_geom.offsetCurve(-deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-            linha_esquerda1 = linha_base_geom.offsetCurve(deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+        # Extrair coordenadas da linha base
+        if linha_base_geom.isMultipart():
+            coord_base = linha_base_geom.asMultiPolyline()[0]
         else:
-            linha_direita1 = linha_base_geom.offsetCurve(-deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
-            linha_esquerda1 = linha_base_geom.offsetCurve(deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0)
+            coord_base = linha_base_geom.asPolyline()
 
-        linha_direita1 = valid_or_fallback(linha_direita1)
-        linha_esquerda1 = valid_or_fallback(linha_esquerda1)
+        # Transformar distâncias para graus
+        centroide = linha_base_geom.centroid().asPoint()
+        latitude_ref = centroide.y()
+        deltaFront_graus = meters2degrees(deltaFront, latitude_ref, crs)
+        deltaLat_graus   = meters2degrees(deltaLat,   latitude_ref, crs)
 
-        linha_direita2 = None
-        linha_esquerda2 = None
-        if dois_buffers:
+        # Calcular offsets laterais - distâncias de offset de cada linha em relação ao eixo
+        # com eixo: ±1×dl, ±2×dl   sem eixo: ±0.5×dl, ±1.5×dl
+        if incluir_eixo:
+            offsets = [-2 * deltaLat_graus, -deltaLat_graus, 0, deltaLat_graus, 2 * deltaLat_graus]
+        else:
+            offsets = [-1.5 * deltaLat_graus, -0.5 * deltaLat_graus, 0.5 * deltaLat_graus, 1.5 * deltaLat_graus]
+
+        # Filtrar eixo se não incluso e, se não dois buffers, remover externos
+        if not incluir_eixo:
+            offsets_filtrados = offsets  # já sem o 0
+        else:
+            offsets_filtrados = offsets
+
+        if not dois_buffers:
+            # Manter apenas os 3 centrais (ou 2 se sem eixo)
             if incluir_eixo:
-                linha_direita2 = valid_or_fallback(linha_base_geom.offsetCurve(-2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
-                linha_esquerda2 = valid_or_fallback(linha_base_geom.offsetCurve(2*deltaLat, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                offsets_filtrados = [-deltaLat_graus, 0, deltaLat_graus]
             else:
-                linha_direita2 = valid_or_fallback(linha_base_geom.offsetCurve(-2*deltaLat + deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
-                linha_esquerda2 = valid_or_fallback(linha_base_geom.offsetCurve(2*deltaLat - deltaLat/2, segments=8, joinStyle=QgsGeometry.JoinStyleRound, miterLimit=2.0))
+                offsets_filtrados = [-0.5 * deltaLat_graus, 0.5 * deltaLat_graus]
 
-        # ===== Determinar lado inicial da linha-eixo conforme orientação da linha =====
-        linha_pts = linha_geom.asPolyline()
-        inicio = QgsPointXY(linha_pts[0])
-        fim = QgsPointXY(linha_pts[-1])
-
+        # Determinar lado inicial pela orientação da linha 
+        inicio = coord_base[0]
+        fim    = coord_base[-1]
         dx = fim.x() - inicio.x()
         dy = fim.y() - inicio.y()
 
-        lado_inicial = "direita" if abs(dx) >= abs(dy) else "esquerda"
-
-        # ===== Geração de pontos ao longo das linhas =====
-        def gerar_pontos(geom_line: QgsGeometry) -> list:
-            comp = geom_line.length()
-            dist = 0.0
-            pontos = []
-            while dist < comp:
-                pontos.append(geom_line.interpolate(dist))
-                dist += deltaFront
-            pontos.append(geom_line.interpolate(comp))
-            return pontos
-
-        if lado_inicial == "esquerda":
-            pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
-            pontos_esquerda1 = gerar_pontos(linha_esquerda1)
-            pontos_eixo = gerar_pontos(linha_base_geom) if incluir_eixo else []
-            pontos_direita1 = gerar_pontos(linha_direita1)
-            pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
+        # Linha mais horizontal → começa pela direita (offset negativo); mais vertical → esquerda
+        if abs(dx) >= abs(dy):
+            offsets_ordenados = sorted(offsets_filtrados, reverse=True)   # direita → esquerda (neg→pos)
         else:
-            pontos_direita2 = gerar_pontos(linha_direita2) if dois_buffers else []
-            pontos_direita1 = gerar_pontos(linha_direita1)
-            pontos_eixo = gerar_pontos(linha_base_geom) if incluir_eixo else []
-            pontos_esquerda1 = gerar_pontos(linha_esquerda1)
-            pontos_esquerda2 = gerar_pontos(linha_esquerda2) if dois_buffers else []
+            offsets_ordenados = sorted(offsets_filtrados)                  # esquerda → direita
 
-        # ===== Ajuste da ordem dos pontos =====
-        def ajustar_ordem(pontos_atual, pontos_anterior):
-            if not pontos_atual or not pontos_anterior:
-                return pontos_atual
-            dist_inicio = pontos_atual[0].distance(pontos_anterior[-1])
-            dist_fim = pontos_atual[-1].distance(pontos_anterior[-1])
-            if dist_fim < dist_inicio:
-                pontos_atual.reverse()
-            return pontos_atual
+        # Montar LISTA_PONTOS em padrão serpentina
+        LISTA_PONTOS = []
+        direcao = 1  # 1 = frente, -1 = invertido (serpentina)
 
-        seq = []
-
-        def append_seg(lista_pontos, nome):
-            # Não adiciona listas vazias
-            if not lista_pontos:
-                return
-            # Ajusta ordem em relação ao último segmento já adicionado
-            if seq:
-                lista_pontos = ajustar_ordem(lista_pontos, seq[-1][0])
-            seq.append((lista_pontos, nome))
-
-        # Detectar quantidade de buffers com base nas listas calculadas
-        dois_buffers = bool(pontos_direita2) and bool(pontos_esquerda2)
-
-        if lado_inicial == "esquerda":
-            if dois_buffers:
-                append_seg(pontos_esquerda2, 'esquerda2')
-                append_seg(pontos_esquerda1, 'esquerda1')
-                if incluir_eixo and pontos_eixo:
-                    append_seg(pontos_eixo, 'eixo')
-                append_seg(pontos_direita1, 'direita1')
-                append_seg(pontos_direita2, 'direita2')
+        for offset in offsets_ordenados:
+            if offset == 0:
+                geom_linha = linha_base_geom
             else:
-                append_seg(pontos_esquerda1, 'esquerda1')
-                if incluir_eixo and pontos_eixo:
-                    append_seg(pontos_eixo, 'eixo')
-                append_seg(pontos_direita1, 'direita1')
-        else:  # lado_inicial == "direita"
-            if dois_buffers:
-                append_seg(pontos_direita2, 'direita2')
-                append_seg(pontos_direita1, 'direita1')
-                if incluir_eixo and pontos_eixo:
-                    append_seg(pontos_eixo, 'eixo')
-                append_seg(pontos_esquerda1, 'esquerda1')
-                append_seg(pontos_esquerda2, 'esquerda2')
-            else:
-                append_seg(pontos_direita1, 'direita1')
-                if incluir_eixo and pontos_eixo:
-                    append_seg(pontos_eixo, 'eixo')
-                append_seg(pontos_esquerda1, 'esquerda1')      
+                geom_linha = linha_base_geom.offsetCurve(
+                    offset,
+                    segments=8,
+                    joinStyle=Qgis.JoinStyle.Round,
+                    miterLimit=2.0
+                )
+                if not geom_linha or geom_linha.isEmpty():
+                    geom_linha = linha_base_geom
 
-        # ===== Camada de pontos =====
-        pontos_layer = QgsVectorLayer(f'Point?crs={crs.authid()}', 'Photo Points', 'memory')
-        prov = pontos_layer.dataProvider()
-        prov.addAttributes([
-            QgsField("id", QVariant.Int),
-            QgsField("latitude", QVariant.Double),
-            QgsField("longitude", QVariant.Double),
-            QgsField("altitude", QVariant.Double),
-            QgsField("height", QVariant.Double)
-        ])
-        pontos_layer.updateFields()
-
-        # ===== Inserir features numeradas =====
-        transformador = QgsCoordinateTransform(pontos_layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
-
-        contador = 1
-        for lista, tipo in seq:
-            for ponto in lista:
-                if not ponto or ponto.isEmpty():
-                    continue
-                geom = ponto.asPoint()
-                geom_utm = QgsGeometry.fromPointXY(QgsPointXY(geom.x(), geom.y()))
-                geom_wgs = transformador.transform(QgsPointXY(geom.x(), geom.y()))
-
-                f = QgsFeature()
-                f.setGeometry(geom_utm)
-                f.setAttributes([
-                    contador,
-                    geom_wgs.y(),   # latitude
-                    geom_wgs.x(),   # longitude
-                    None,           # altitude preenchida depois
-                    altVoo               # height (altura de voo)
-                ])
-                prov.addFeature(f)
-                contador += 1
-
-        pontos_layer.updateExtents()
-        feedback.pushInfo(f"✅ {contador-1} Photo Points generated.")
+            pontos = pontos_na_linha(geom_linha, deltaFront_graus, altVoo, azimute)
+            pontos_linha = pontos[::direcao]
+            # Pontos de ligação entre linhas (quando deltaLat > deltaFront)
+            if LISTA_PONTOS and pontos_linha:
+                LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], pontos_linha[0], altVoo))
+            LISTA_PONTOS.extend(pontos_linha)
+            direcao *= -1
         
+        # Heading: cada ponto aponta para o próximo waypoint
+        heading_para_proximo(LISTA_PONTOS, azimute)
 
-        # ===== Camada de linhas unindo os pontos de cada linha de voo =====
-        linhas_voo_layer = QgsVectorLayer(
-            f'LineString?crs={crs.authid()}',
-            'Flight Lines',
-            'memory'
-        )
-        prov_linhas = linhas_voo_layer.dataProvider()
-
-        prov_linhas.addAttributes([
-            QgsField("id", QVariant.Int),
-            QgsField("tipo", QVariant.String)
-        ])
-        linhas_voo_layer.updateFields()
-
-        id_linha = 1
-
-        for lista_pontos, tipo in seq:
-            if not lista_pontos or len(lista_pontos) < 2:
-                continue
-
-            pts = []
-            for p in lista_pontos:
-                if not p or p.isEmpty():
-                    continue
-                pt = p.asPoint()
-                pts.append(QgsPointXY(pt.x(), pt.y()))
-
-            if len(pts) < 2:
-                continue
-
-            feat = QgsFeature()
-            feat.setGeometry(QgsGeometry.fromPolylineXY(pts))
-            feat.setAttributes([id_linha, tipo])
-            prov_linhas.addFeature(feat)
-
-            id_linha += 1
-
-        linhas_voo_layer.updateExtents()
-
-        # ===== Simbologia das linhas de voo =====
-        simbologiaLinhaVoo('L', linhas_voo_layer)
-
-        # ===== Adiciona a camada de linhas ao projeto =====
-        QgsProject.instance().addMapLayer(linhas_voo_layer)
-
-        feedback.pushInfo("")
-        feedback.pushInfo("✅ Flight Line and Photo Spots completed.")
-        
         # =============L I T C H I==========================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("L", LISTA_PONTOS, arquivo_csv, velocidade, tempo, arredondar_para_cima(deltaFront, 2), 360, altVoo, gimbalAng, terrain, n_linhas)
+            gerar_CSV("L", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront, 0, altVoo, gimbalAng, terrain, n_linhas)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
@@ -375,7 +224,8 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
 
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
-        feedback.pushInfo("✅ Horizontal Flight Plan successfully executed.")
+        feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(offsets_ordenados)} flight line(s).")
+        feedback.pushInfo("✅ Horizontal Linear Flight Plan successfully executed.")
         feedback.pushInfo("")
         
         return {'csv': arquivo_csv,

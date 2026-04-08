@@ -114,6 +114,8 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
                if flight_type == "VF" or flight_type == "VC":
                   alturavoo = ponto['height']
                   angulo = ponto['bowangle']
+               elif flight_type == "L":
+                  angulo = ponto['bowangle']   # heading aponta para o próximo waypoint
 
                # Criar um dicionário de dados para cada item do CSV
                data = {
@@ -174,6 +176,8 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
 
                if flight_type == "VF" or flight_type == "VC":
                   alturavoo = f['height']
+                  angulo = f['bowangle']
+               elif flight_type == "L":
                   angulo = f['bowangle']
                   
                # Criar um dicionário de dados para cada item do CSV
@@ -837,6 +841,260 @@ def azimute(A, B):
 
     return AzAB, AzBA
 
+def distancia(P1, P2):
+    """Distância euclidiana entre dois QgsPointXY."""
+    return np.sqrt((P1.x() - P2.x())**2 + (P1.y() - P2.y())**2)
+
+def pontos_na_linha(geom_linha, deltaFront_graus, altVoo, azimute_func):
+    """
+    Gera lista de dicts {longitude, latitude, height, bowangle} distribuídos
+    ao longo de geom_linha (QgsGeometry LineString em graus WGS84),
+    com espaçamento deltaFront_graus entre pontos.
+
+    Parâmetros:
+        geom_linha       : QgsGeometry (LineString ou MultiLineString, WGS84)
+        deltaFront_graus : float — espaçamento entre fotos em graus
+        altVoo           : float — altura de voo em metros
+        azimute_func     : callable — função azimute(A, B) -> (AzAB, AzBA)
+    """
+    if geom_linha.isMultipart():
+        coord = geom_linha.asMultiPolyline()[0]
+    else:
+        coord = geom_linha.asPolyline()
+
+    comprimento = geom_linha.length()
+
+    # Distâncias acumuladas nos vértices
+    ListaDist = [0]
+    soma = 0.0
+    for i in range(len(coord) - 1):
+        soma += distancia(coord[i], coord[i + 1])
+        ListaDist.append(soma)
+
+    # Número de seções e espaçamento ajustado
+    if deltaFront_graus < comprimento:
+        NumSec = int(np.floor(comprimento / deltaFront_graus))
+        DistSec = comprimento / NumSec
+    else:
+        NumSec, DistSec = 1, comprimento
+
+    dist_alvo = np.arange(0, comprimento + DistSec, DistSec)
+
+    pontos = []
+    cont = 0
+    for k in range(len(coord) - 1):
+        while cont <= NumSec and ListaDist[k] <= dist_alvo[cont] < ListaDist[k + 1]:
+            p1 = np.array([coord[k].x(),     coord[k].y()])
+            p2 = np.array([coord[k + 1].x(), coord[k + 1].y()])
+            vetor = p2 - p1
+            vetor /= np.linalg.norm(vetor)
+            centro = p1 + vetor * (dist_alvo[cont] - ListaDist[k])
+            Az = azimute_func(
+                    QgsPointXY(float(centro[0] + vetor[1] / 2), float(centro[1] - vetor[0] / 2)),
+                    QgsPointXY(float(centro[0] - vetor[1] / 2), float(centro[1] + vetor[0] / 2))
+                )[1] * 180 / np.pi
+            pontos.append({
+                'longitude': float(centro[0]),
+                'latitude':  float(centro[1]),
+                'height':    altVoo,
+                'bowangle':  int(Az)
+            })
+            cont += 1
+
+    # Último ponto no vértice final da linha
+    p1 = np.array([coord[-2].x(), coord[-2].y()])
+    p2 = np.array([coord[-1].x(), coord[-1].y()])
+    vetor = p2 - p1
+    vetor /= np.linalg.norm(vetor)
+    centro = np.array([coord[-1].x(), coord[-1].y()])
+    Az = azimute_func(
+        QgsPointXY(float(centro[0] + vetor[1] / 2), float(centro[1] - vetor[0] / 2)),
+        QgsPointXY(float(centro[0] - vetor[1] / 2), float(centro[1] + vetor[0] / 2))
+    )[1] * 180 / np.pi
+    pontos.append({
+        'longitude': float(centro[0]),
+        'latitude':  float(centro[1]),
+        'height':    altVoo,
+        'bowangle':  int(Az)
+    })
+
+    return pontos
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
+    """
+    Gera linhas de voo paralelas que preenchem o polígono.
+
+    Regra SEMPRE garantida:
+      - Primeira linha: sobre o lado do polígono onde P1 está
+      - Última linha:   sobre o lado oposto do polígono
+      - Entre elas:     linhas espaçadas por deltaLat (0 ou mais)
+
+    Parâmetros:
+        linha_ref_geom : QgsGeometry — linha de referência (direção das linhas de voo)
+        poligono_geom  : QgsGeometry — polígono da área (já em WGS84)
+        pol_pts        : list de pontos — vértices do polígono
+        p1             : QgsPointXY — ponto SOBRE o lado do polígono (início do voo)
+        deltaLat       : float — espaçamento lateral entre linhas (em graus)
+    """
+    import math
+
+    # ── Vetor da direção das linhas de voo ────────────────────────────────────
+    pts_ref = linha_ref_geom.asPolyline()
+    dx = pts_ref[-1].x() - pts_ref[0].x()
+    dy = pts_ref[-1].y() - pts_ref[0].y()
+    comp = math.sqrt(dx**2 + dy**2)
+    if comp == 0:
+        return []
+    vx = dx / comp   # versor ao longo das linhas de voo
+    vy = dy / comp
+    nx = -vy         # versor perpendicular (direção de varredura)
+    ny =  vx
+
+    # ── Projeções nos dois eixos ──────────────────────────────────────────────
+    proj_p1_perp  = p1.x() * nx + p1.y() * ny
+    proj_p1_along = p1.x() * vx + p1.y() * vy
+
+    proj_perp_verts  = [QgsPointXY(pt).x() * nx + QgsPointXY(pt).y() * ny for pt in pol_pts]
+    proj_along_verts = [QgsPointXY(pt).x() * vx + QgsPointXY(pt).y() * vy for pt in pol_pts]
+
+    min_along = min(proj_along_verts)
+    max_along = max(proj_along_verts)
+    ext = max_along - min_along  # extensão para garantir cobertura total ao longo
+
+    # ── Direção do interior: centróide do polígono ────────────────────────────
+    centroide = poligono_geom.centroid().asPoint()
+    proj_centro_perp = centroide.x() * nx + centroide.y() * ny
+    sinal_interior = 1 if proj_centro_perp > proj_p1_perp else -1
+
+    # ── Distância até o lado oposto ───────────────────────────────────────────
+    # Vértice mais distante de p1 na direção do interior
+    dist_max_interior = max(
+        (v - proj_p1_perp) * sinal_interior
+        for v in proj_perp_verts
+    )
+
+    # ── Montar lista de offsets: SEMPRE primeiro e último sobre as bordas ─────
+    EPSILON = deltaLat * 0.02   # distância mínima da borda para evitar vértice degenerado
+
+    offsets = []
+    offsets.append(EPSILON)                          # primeira linha: sobre a borda de P1
+    offset = deltaLat
+    while offset < dist_max_interior - EPSILON:      # linhas interiores
+        offsets.append(offset)
+        offset += deltaLat
+    offsets.append(dist_max_interior - EPSILON)      # última linha: sobre a borda oposta
+
+    # Remover duplicatas próximas (quando deltaLat > largura do polígono)
+    offsets_limpos = [offsets[0]]
+    for o in offsets[1:]:
+        if o - offsets_limpos[-1] > EPSILON:
+            offsets_limpos.append(o)
+
+    # ── Cortar com o polígono e normalizar ────────────────────────────────────
+    def clipar(geom_off):
+        geom_clip = geom_off.intersection(poligono_geom)
+        if not geom_clip or geom_clip.isEmpty():
+            return None
+        if geom_clip.isMultipart():
+            partes = geom_clip.asMultiPolyline()
+            if not partes:
+                return None
+            geom_clip = QgsGeometry.fromPolylineXY(max(partes, key=len))
+        return geom_clip
+
+    # ── Gerar linhas ──────────────────────────────────────────────────────────
+    linhas_orientadas = []
+
+    for offset in offsets_limpos:
+        perp_pos = proj_p1_perp + sinal_interior * offset
+
+        cx = nx * perp_pos
+        cy = ny * perp_pos
+
+        p_a = QgsPointXY(cx + vx * (min_along - ext), cy + vy * (min_along - ext))
+        p_b = QgsPointXY(cx + vx * (max_along + ext), cy + vy * (max_along + ext))
+
+        geom_clip = clipar(QgsGeometry.fromPolylineXY([p_a, p_b]))
+        if geom_clip:
+            pts = geom_clip.asMultiPolyline()[0] if geom_clip.isMultipart() else geom_clip.asPolyline()
+            if pts:
+                # Orientar: extremo mais próximo de P1 é o início
+                proj_ini = pts[0].x()  * vx + pts[0].y()  * vy
+                proj_fim = pts[-1].x() * vx + pts[-1].y() * vy
+                if abs(proj_fim - proj_p1_along) < abs(proj_ini - proj_p1_along):
+                    pts = list(reversed(pts))
+                linhas_orientadas.append(QgsGeometry.fromPolylineXY(pts))
+
+    return linhas_orientadas
+
+
+
+def pontos_conexao(p_fim, p_ini, altVoo):
+    """Coloca um ponto de foto no meio de cada segmento de conexao entre linhas.
+    Nao inclui p_fim nem p_ini (ja estao em LISTA_PONTOS).
+    """
+    return [{
+        'longitude': (p_fim['longitude'] + p_ini['longitude']) / 2,
+        'latitude':  (p_fim['latitude']  + p_ini['latitude'])  / 2,
+        'height':    altVoo,
+        'bowangle':  0  # corrigido por heading_para_proximo
+    }]
+
+
+def heading_para_proximo(LISTA_PONTOS, azimute_func):
+    """
+    Atualiza o campo 'bowangle' de cada ponto em LISTA_PONTOS para apontar
+    para o próximo waypoint (ordem final da serpentina).
+    O último ponto herda o heading do penúltimo.
+    """
+    ultimo_az = 0
+    for i in range(len(LISTA_PONTOS) - 1):
+        AzAB, _ = azimute_func(
+            QgsPointXY(LISTA_PONTOS[i]['longitude'],     LISTA_PONTOS[i]['latitude']),
+            QgsPointXY(LISTA_PONTOS[i + 1]['longitude'], LISTA_PONTOS[i + 1]['latitude'])
+        )
+        if AzAB is not None:
+            ultimo_az = int(AzAB * 180 / np.pi)
+        LISTA_PONTOS[i]['bowangle'] = ultimo_az
+    if LISTA_PONTOS:
+        LISTA_PONTOS[-1]['bowangle'] = ultimo_az
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
     coords_linha = " ".join(
@@ -906,8 +1164,6 @@ def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
 
     with open(caminho_saida, "w", encoding="utf-8") as f:
         f.write(kml)
-
-
 
 def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
     """
