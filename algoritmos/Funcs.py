@@ -231,6 +231,20 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
                # Escrever a linha no CSV
                writer.writerow(data)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def addCampo(layer, field_name, field_type):
       layer.dataProvider().addAttributes([QgsField(field_name, field_type)])
       layer.updateFields()
@@ -1166,6 +1180,36 @@ def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
         f.write(kml)
 
 def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
+    """
+    Carrega um CSV exportado pelo plugin como camada de pontos no QGIS.
+    Espera colunas latitude e longitude em EPSG:4326.
+    """
+    if not csv_path or not os.path.exists(csv_path):
+        return None
+
+    if layer_name is None:
+        layer_name = os.path.splitext(os.path.basename(csv_path))[0]
+
+    csv_path_uri = csv_path.replace("\\", "/")
+
+    uri = (
+        f"file:///{csv_path_uri}"
+        f"?type=csv"
+        f"&delimiter=,"
+        f"&detectTypes=yes"
+        f"&xField=longitude"
+        f"&yField=latitude"
+        f"&geomType=point"
+        f"&crs=EPSG:4326"
+    )
+
+    layer = QgsVectorLayer(uri, 'waypoints - ' + layer_name, "delimitedtext")
+
+    if not layer.isValid():
+        return None
+
+    return layer
+
     """
     Carrega um CSV exportado pelo plugin como camada de pontos no QGIS.
     Espera colunas latitude e longitude em EPSG:4326.

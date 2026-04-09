@@ -320,7 +320,6 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
             else:
                 feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
 
-        
         # ================= Carregar CSV no QGIS =================
         layer_pontos = None
 
