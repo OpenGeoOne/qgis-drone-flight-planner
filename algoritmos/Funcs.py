@@ -58,310 +58,69 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
          writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
          writer.writeheader()
 
-         if flight_type == "H" or flight_type == "S" or flight_type == "L":
-            alturavoo = H
-            mode_gimbal = 2
-            angulo_gimbal = gimbalAng
-         elif flight_type == "H_RC2":
-            alturavoo = H
-            mode_gimbal = 0
-            angulo_gimbal = gimbalAng
+         alturavoo    = H
+         angulo_gimbal = gimbalAng
+         above_ground = 1 if terrain else 0
+         mode_gimbal  = 2 if flight_type in ("H", "S", "L") else 0
+
+         if flight_type == "H_RC2":
+            t1, t2, t3, t4        = -1, 0, -1, 0
+            time_interval         = -1
+            dist_interval         = -1
          else:
-            mode_gimbal = 0
-            angulo_gimbal = gimbalAng
+            t1, t2, t3, t4        = (1, 0, -1, 0) if tempo == 0 else (0, tempo * 1000, 1, 0)
+            time_interval         = delta if deltaFront_op == 1 else -1
+            dist_interval         = -1    if deltaFront_op == 1 else delta
          
-         if terrain:
-            above_ground = 1 # Above Ground habilitado
-         else:
-            above_ground = 0 # Above Ground não habilitado
+         for ponto in pontos_fotos:
+            longitude = ponto['longitude']
+            latitude = ponto['latitude']
 
-         if flight_type != "H_RC2":
-            if tempo == 0:
-               t1 = 1          # TAKE_PHOTO
-               t2 = 0
-               t3 = -1
-               t4 = 0
-            else:
-               t1 = 0          # STAY n segundos
-               t2 = tempo*1000
-               t3 = 1          # TAKE_PHOTO
-               t4 = 0
+            if flight_type == "VF" or flight_type == "VC":
+               alturavoo = ponto['height']
+               angulo = ponto['bowangle']
+            elif flight_type in ("L", "H_RC2"):
+               angulo = ponto['bowangle']
 
-            if deltaFront_op == 1:   # valor = 1 is seconds; caso tenha sido escolhido por tempo no Voo Horizontal Manual
-               time_interval = delta
-               dist_interval = -1
-            elif deltaFront_op == 0: # valor = 0 is meters; caso tenha sido escolhido por distância no Voo Horizontal Manual
-               time_interval = -1
-               dist_interval = delta
-            else:                  # None para todos os voos que não Horizontal Manual
-               time_interval = -1
-               dist_interval = delta
-         else:
-            t1 = -1
-            t3 = -1
-            t2 = 0
-            t4 = 0
-            time_interval = -1
-            dist_interval = -1
-         
-         if isinstance(pontos_fotos, list):
-            # Ler os dados da lista
-            for ponto in pontos_fotos:
-               # Extrair os valores dos campos da camada
-               longitude = ponto['longitude']
-               latitude = ponto['latitude']
-
-               if flight_type == "VF" or flight_type == "VC":
-                  alturavoo = ponto['height']
-                  angulo = ponto['bowangle']
-               elif flight_type in ("L", "H_RC2"):
-                  angulo = ponto['bowangle']
-
-               # Criar um dicionário de dados para cada item do CSV
-               data = {
-                  "latitude": f"{latitude:.8f}",
-                  "longitude": f"{longitude:.8f}",
-                  "altitude(m)": f"{alturavoo:.1f}",
-                  "heading(deg)": f"{angulo:.0f}",
-                  "curvesize(m)": 0,
-                  "rotationdir": 0,
-                  "gimbalmode": mode_gimbal,
-                  "gimbalpitchangle": angulo_gimbal,
-                  "actiontype1": t1,
-                  "actionparam1": t2,
-                  "actiontype2": t3,
-                  "actionparam2": t4,
-                  "actiontype3": -1,
-                  "actionparam3": 0,
-                  "actiontype4": -1,
-                  "actionparam4": 0,
-                  "actiontype5": -1,
-                  "actionparam5": 0,
-                  "actiontype6": -1,
-                  "actionparam6": 0,
-                  "actiontype7": -1,
-                  "actionparam7": 0,
-                  "actiontype8": -1,
-                  "actionparam8": 0,
-                  "actiontype9": -1,
-                  "actionparam9": 0,
-                  "actiontype10": -1,
-                  "actionparam10": 0,
-                  "actiontype11": -1,
-                  "actionparam11": 0,
-                  "actiontype12": -1,
-                  "actionparam12": 0,
-                  "actiontype13": -1,
-                  "actionparam13": 0,
-                  "actiontype14": -1,
-                  "actionparam14": 0,
-                  "actiontype15": -1,
-                  "actionparam15": 0,
-                  "altitudemode": above_ground,
-                  "speed(m/s)": velocidade,
-                  "poi_latitude": 0,
-                  "poi_longitude": 0,
-                  "poi_altitude(m)": 0,
-                  "poi_altitudemode": 0,
-                  "photo_timeinterval": time_interval,
-                  "photo_distinterval": f"{dist_interval:.2f}"}
-               # Escrever a linha no CSV
-               writer.writerow(data)
-         else: #layer
-            # Ler os dados da camada Pontos
-            for f in pontos_fotos.getFeatures():
-               # Extrair os valores dos campos da camada
-               longitude = f['longitude']
-               latitude = f['latitude']
-
-               if flight_type == "VF" or flight_type == "VC":
-                  alturavoo = f['height']
-                  angulo = f['bowangle']
-               elif flight_type == "L":
-                  angulo = f['bowangle']
-                  
-               # Criar um dicionário de dados para cada item do CSV
-               data = {
-                  "latitude": f"{latitude:.8f}",
-                  "longitude": f"{longitude:.8f}",
-                  "altitude(m)": f"{alturavoo:.1f}",
-                  "heading(deg)": f"{angulo:.0f}",
-                  "curvesize(m)": 0,
-                  "rotationdir": 0,
-                  "gimbalmode": mode_gimbal,
-                  "gimbalpitchangle": angulo_gimbal,
-                  "actiontype1": t1,
-                  "actionparam1": t2,
-                  "actiontype2": t3,
-                  "actionparam2": t4,
-                  "actiontype3": -1,
-                  "actionparam3": 0,
-                  "actiontype4": -1,
-                  "actionparam4": 0,
-                  "actiontype5": -1,
-                  "actionparam5": 0,
-                  "actiontype6": -1,
-                  "actionparam6": 0,
-                  "actiontype7": -1,
-                  "actionparam7": 0,
-                  "actiontype8": -1,
-                  "actionparam8": 0,
-                  "actiontype9": -1,
-                  "actionparam9": 0,
-                  "actiontype10": -1,
-                  "actionparam10": 0,
-                  "actiontype11": -1,
-                  "actionparam11": 0,
-                  "actiontype12": -1,
-                  "actionparam12": 0,
-                  "actiontype13": -1,
-                  "actionparam13": 0,
-                  "actiontype14": -1,
-                  "actionparam14": 0,
-                  "actiontype15": -1,
-                  "actionparam15": 0,
-                  "altitudemode": above_ground,
-                  "speed(m/s)": velocidade,
-                  "poi_latitude": 0,
-                  "poi_longitude": 0,
-                  "poi_altitude(m)": 0,
-                  "poi_altitudemode": 0,
-                  "photo_timeinterval": time_interval,
-                  "photo_distinterval": dist_interval}
-               # Escrever a linha no CSV
-               writer.writerow(data)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            data = {
+               "latitude": f"{latitude:.8f}",
+               "longitude": f"{longitude:.8f}",
+               "altitude(m)": f"{alturavoo:.1f}",
+               "heading(deg)": f"{angulo:.0f}",
+               "curvesize(m)": 0,
+               "rotationdir": 0,
+               "gimbalmode": mode_gimbal,
+               "gimbalpitchangle": angulo_gimbal,
+               "actiontype1": t1,
+               "actionparam1": t2,
+               "actiontype2": t3,
+               "actionparam2": t4,
+               "actiontype3": -1, "actionparam3": 0,
+               "actiontype4": -1, "actionparam4": 0,
+               "actiontype5": -1, "actionparam5": 0,
+               "actiontype6": -1, "actionparam6": 0,
+               "actiontype7": -1, "actionparam7": 0,
+               "actiontype8": -1, "actionparam8": 0,
+               "actiontype9": -1, "actionparam9": 0,
+               "actiontype10": -1, "actionparam10": 0,
+               "actiontype11": -1, "actionparam11": 0,
+               "actiontype12": -1, "actionparam12": 0,
+               "actiontype13": -1, "actionparam13": 0,
+               "actiontype14": -1, "actionparam14": 0,
+               "actiontype15": -1, "actionparam15": 0,
+               "altitudemode": above_ground,
+               "speed(m/s)": velocidade,
+               "poi_latitude": 0,
+               "poi_longitude": 0,
+               "poi_altitude(m)": 0,
+               "poi_altitudemode": 0,
+               "photo_timeinterval": time_interval,
+               "photo_distinterval": f"{dist_interval:.2f}"}
+            writer.writerow(data)
 
 def addCampo(layer, field_name, field_type):
       layer.dataProvider().addAttributes([QgsField(field_name, field_type)])
       layer.updateFields()
-
-def set_Z_value(layer, z_field):
-    result = processing.run("native:setzvalue", {
-        'INPUT': layer,
-        'Z_VALUE': QgsProperty.fromExpression(f'"{z_field}"'),
-        'OUTPUT': 'TEMPORARY_OUTPUT'
-    })
-
-    output_layer = result['OUTPUT']
-    output_layer.setName(layer.name())
-
-    return output_layer
-
-def reprojeta_camada_WGS84(layer, crs_wgs, transformador):
-   geometry_type = layer.geometryType()
-
-   # Criar camada reprojetada com base no tipo de geometria
-   if geometry_type == QgsWkbTypes.PointGeometry:
-      tipo_layer = "Point"
-   elif geometry_type == QgsWkbTypes.LineGeometry:
-      tipo_layer = "LineString"
-   elif geometry_type == QgsWkbTypes.PolygonGeometry:
-      tipo_layer = "Polygon"
-
-   # Criar a nova camada reprojetada em memória
-   reproj_layer = QgsVectorLayer(f"{tipo_layer}?crs={crs_wgs.authid()}", f"{layer.name()}", "memory")
-
-   reproj_layer.startEditing()
-   reproj_layer.dataProvider().addAttributes(layer.fields())
-   reproj_layer.updateFields()
-
-   # Reprojetar feições
-   for f in layer.getFeatures():
-      geom = f.geometry()
-      geom.transform(transformador)
-      reproj = QgsFeature()
-      reproj.setGeometry(geom)
-      reproj.setAttributes(f.attributes())
-      reproj_layer.addFeature(reproj)
-
-   reproj_layer.commitChanges()
-
-   return reproj_layer
-
-def simbologiaLinhaVoo(flight_type, layer):
-   if flight_type == "H" or flight_type == "L":
-      line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})  # Linha base
-
-      seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
-
-      marcador = QgsMarkerLineSymbolLayer()
-      marcador.setInterval(30)  # Define o intervalo entre as setas (marcadores)
-      marcador.setSubSymbol(seta)
-
-      layer.renderer().symbol().appendSymbolLayer(marcador)
-   elif flight_type == "VF" or flight_type == "VC":
-      simbologia = QgsLineSymbol.createSimple({
-            'color': 'green',        # Cor da linha
-            'width': '0.8'           # Largura da linha
-         })
-      layer.setRenderer(QgsSingleSymbolRenderer(simbologia))
-
-      if flight_type == "VF":
-         # Rótulo
-         label_settings = QgsPalLayerSettings()
-         label_settings.fieldName = 'id'  # Campo que será usado como rótulo
-         label_settings.placement = QgsPalLayerSettings.Line
-         label_settings.enabled = True
-
-         # Criar configurações de renderização de rótulos
-         text_format = QgsTextFormat()
-         text_format.setSize(10)  # Tamanho da fonte
-         text_format.setColor(QColor('blue'))  # Cor do texto
-         text_format.setFont(QFont('Arial'))  # Fonte do texto
-
-         label_settings.setFormat(text_format)
-
-         # Aplicar rótulos à camada
-         labeling = QgsVectorLayerSimpleLabeling(label_settings)
-         layer.setLabelsEnabled(True)
-         layer.setLabeling(labeling)
-         layer.triggerRepaint()
-
-   return
-
-def simbologiaPontos(layer):
-   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
-   renderer = QgsSingleSymbolRenderer(simbolo)
-   layer.setRenderer(renderer)
-
-   # Rótulos
-   settings = QgsPalLayerSettings()
-   settings.fieldName = "id"
-   settings.isExpression = True
-   settings.enabled = True
-
-   textoF = QgsTextFormat()
-   textoF.setFont(QFont("Arial", 10, QFont.Bold))
-   textoF.setSize(10)
-
-   bufferS = QgsTextBufferSettings()
-   bufferS.setEnabled(True)
-   bufferS.setSize(1)  # Tamanho do buffer em milímetros
-   bufferS.setColor(QColor("white"))  # Cor do buffer
-
-   textoF.setBuffer(bufferS)
-   settings.setFormat(textoF)
-
-   layer.setLabelsEnabled(True)
-   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-
-   layer.triggerRepaint()
-
-   return
 
 def verificar_plugins(plugins_list, feedback=None):
     # Obter a lista de todos os plugins instalados
@@ -377,110 +136,9 @@ def verificar_plugins(plugins_list, feedback=None):
 
     return
 
-def calculaDistancia_Linha_Ponto(line_geom, point_geom):
-   distancia = line_geom.distance(point_geom)
-
-   return distancia
-
-def verificarCRS(layer, feedback=None):
-   # UTM Norte / UTM 32601 a 32660 / 31918 a 31924 / SIRGAS2000 UTM 31957 a 31965 S
-   # UTM Sul  /  UTM 32701 a 32760 / 31925 a 31927 / SIRGAS2000 UTM 31978 a 31985 S
-
-   crs_layer = layer.crs()
-   descricao_crs_layer = crs_layer.description()
-   epsg_code_layer = crs_layer.authid()
-
-   extent = layer.extent()
-   lat_media = (extent.yMinimum() + extent.yMaximum()) / 2.0  # Latitude média
-   long_media = (extent.xMinimum() + extent.xMaximum()) / 2.0  # Longitude média
-
-   utm_zone = int((long_media + 180) / 6) + 1  # Calcula a zona UTM
-
-   if lat_media >= 0:
-      hemisferio = "Norte"
-   else:
-      hemisferio = "Sul"
-
-   if "WGS 84" in descricao_crs_layer.upper():
-        if hemisferio == "Norte":
-            epsg_code = 32600 + utm_zone  # WGS 84 Hemisfério Norte
-        else:
-            epsg_code = 32700 + utm_zone  # WGS 84 Hemisfério Sul
-   elif "SIRGAS 2000" in descricao_crs_layer.upper():
-      if hemisferio == "Norte":
-            epsg_code = 31956 + utm_zone      # SIRGAS 2000 Hemisfério Norte
-      else:
-            epsg_code = 31978 + utm_zone - 18 # SIRGAS 2000 Hemisfério Sul
-   else:
-      raise Exception(f"❌ Layer must be WGS84 or SIRGAS2000 or UTM. Other ({descricao_crs_layer.upper()}, EPSG:{epsg_code_layer}) not supported")
-
-   crs_utm = QgsCoordinateReferenceSystem(f"EPSG:{epsg_code}")
-   feedback.pushInfo(f"✅ Reprojecting to CRS EPSG:{epsg_code} - {crs_utm.description()}")
-
-   # Reprojetar a camada para o CRS UTM apropriado
-   transform_context = QgsProject.instance().transformContext()
-   transform = QgsCoordinateTransform(crs_layer, crs_utm, transform_context)
-
-   # Determina o tipo de geometria da camada original
-   geometry_type = layer.geometryType()  # 0: Point, 1: Line, 2: Polygon
-   if geometry_type == 0:
-      geometry_string = "Point"
-   elif geometry_type == 1:
-      geometry_string = "LineString"
-   elif geometry_type == 2:
-      geometry_string = "Polygon"
-
-   # Cria uma nova camada para armazenar os dados reprojetados
-   camada_reprojetada = QgsVectorLayer(
-            f"{geometry_string}?crs=EPSG:{epsg_code}",
-            f"{layer.name()}_reproject",
-            "memory")
-
-   nova_data_provider = camada_reprojetada.dataProvider()
-
-   # Adiciona os campos da camada original à nova amada
-   nova_data_provider.addAttributes(layer.fields())
-   camada_reprojetada.updateFields()
-
-   # Reprojeta os recursos (features) da camada original
-   camada_reprojetada.startEditing()
-   for feature in layer.getFeatures():
-      geom = feature.geometry()
-      if geom:
-         geom.transform(transform)  # Aplica a transformação
-         feature.setGeometry(geom)
-         nova_data_provider.addFeatures([feature])
-   camada_reprojetada.commitChanges()
-
-   QgsProject.instance().addMapLayer(camada_reprojetada)
-
-   return crs_utm
-
-def duplicaPontoInicial(layer):
-   crs = layer.crs()
-
-   geometry_type = layer.wkbType()
-   duplicated_layer = QgsVectorLayer(f"{QgsWkbTypes.displayString(geometry_type)}?crs={crs.authid()}",
-                                       f"{layer.name()}_move", "memory")
-
-   # Copia os campos da camada original para a nova camada
-   duplicated_layer.dataProvider().addAttributes(layer.fields())
-   duplicated_layer.updateFields()
-
-   # Copia as feições (geometria e atributos) da camada original
-   duplicated_layer.startEditing()
-   for feature in layer.getFeatures():
-      duplicated_layer.addFeature(feature)
-   duplicated_layer.commitChanges()
-
-   # Adiciona a nova camada ao projeto
-   QgsProject.instance().addMapLayer(duplicated_layer)
-
-   return
-
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
                    v=None, t=None, abGround=None, dl=None, df=None, dfop=None,
-                   altMin=None, nPartesVC=None, dVertVC=None, csvI=None, crs=None, 
+                   altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
     s = QgsSettings()
     prefixo = "qgis-drone-flight-planner/"
@@ -539,7 +197,7 @@ def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, c
         s.setValue(prefixo + "pontoInicialVC", pontoInicial)
         s.setValue(prefixo + "hObjVC", h)
         s.setValue(prefixo + "altMinVC", altMin)
-        s.setValue(prefixo + "nPartesVC", nPartesVC)
+        s.setValue(prefixo + "anguloFotoVC", anguloFotoVC)
         s.setValue(prefixo + "dVertVC", dVertVC)
         s.setValue(prefixo + "velocVC", v)
         s.setValue(prefixo + "tStayVC", t)
@@ -630,7 +288,7 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "pontoInicialVC", 0),
             s.value(prefixo + "hObjVC", 15),
             s.value(prefixo + "altMinVC", 2.5),
-            s.value(prefixo + "nPartesVC", 8),
+            s.value(prefixo + "anguloFotoVC", 30),
             s.value(prefixo + "dVertVC", 3),
             s.value(prefixo + "velocVC", 1),
             s.value(prefixo + "tStayVC", 2),
@@ -656,176 +314,7 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "addPointsMerge", False)
         )
 
-def removeLayersReproj(txtFinal):
-   layers_to_remove = []
-   for layer in QgsProject.instance().mapLayers().values():
-      # Verificar se o nome da camada termina com '_reproject' ou '_move'
-      if layer.name().endswith(txtFinal):
-            layers_to_remove.append(layer)
-
-   # Remover as camadas que atendem ao critério
-   for layer in layers_to_remove:
-      QgsProject.instance().removeMapLayer(layer)
-
-   return
-
-def arredondar_para_cima(x, pot):
-    return math.ceil(x * 10**pot) / 10**pot
-
-def pontos3D(layer):
-   crs = layer.crs().authid()
-   pointz_layer = QgsVectorLayer(f"PointZ?crs={crs}", layer.name(), "memory")
-   prov = pointz_layer.dataProvider()
-
-   fields = QgsFields()
-   for f in layer.fields():
-      fields.append(f)
-
-   fields.append(QgsField("z_alt", QVariant.Double))
-   prov.addAttributes(fields)
-   pointz_layer.updateFields()
-
-   # Criar feições com Z = altitude + height
-   feats_out = []
-
-   for feat in layer.getFeatures():
-      alt = feat["altitude"] if feat["altitude"] is not None else 0.0 # Voos Verticais
-      h   = feat["height"]
-
-      alt = float(alt) if alt not in (None, '') else 0.0
-      h   = float(h)   if h   not in (None, '') else 0.0
-
-      z = alt + h
-
-      pt = feat.geometry().asPoint()
-      geomz = QgsGeometry.fromPoint(QgsPoint(pt.x(), pt.y(), z))
-
-      new_feat = QgsFeature(pointz_layer.fields())
-      new_feat.setGeometry(geomz)
-      new_feat.setAttributes(feat.attributes() + [z])
-
-      feats_out.append(new_feat)
-
-   prov.addFeatures(feats_out)
-   pointz_layer.updateExtents()
-
-   QgsProject.instance().addMapLayer(pointz_layer)
-
-   return pointz_layer
-          
-def simbologiaPontos3D(layer, tipoVoo):
-   symbol3d = QgsPoint3DSymbol() # Forma = esfera
-   symbol3d.setShape(QgsPoint3DSymbol.Sphere)
-    
-   if tipoVoo == "VF" or tipoVoo == "VC":
-      props = {
-         "radius": 0.8   # em unidades da cena (metros, se o projeto estiver em metros)
-      }
-   else:
-      props = {
-         "radius": 2.0
-      }
-
-   symbol3d.setShapeProperties(props)
-   # Altitude absoluta
-   symbol3d.setAltitudeClamping(Qgis.AltitudeClamping.Absolute)
-   material = QgsPhongMaterialSettings()
-   material.setDiffuse(QColor(122, 122, 122))
-   material.setAmbient(QColor(30, 60, 255))
-   symbol3d.setMaterialSettings(material)
-   renderer3d = QgsVectorLayer3DRenderer(symbol3d)
-   layer.setRenderer3D(renderer3d)
-
-   simbologiaPontos(layer)
-
-   # Atualizações
-   layer.trigger3DUpdate()
-   layer.triggerRepaint() 
-
-   return
-
-def linhas3D(linha_base_geom, alturas, crs, crs_wgs, transformador):
-    # Criar camada Linha de Voo 3D
-    linhas_layer = QgsVectorLayer(
-        'LineStringZ?crs=' + crs.authid(),
-        'Flight Line',
-        'memory'
-    )
-    provider = linhas_layer.dataProvider()
-
-    # Campos
-    campos = QgsFields()
-    campos.append(QgsField("id", QVariant.Int))
-    campos.append(QgsField("height", QVariant.Double))
-    provider.addAttributes(campos)
-    linhas_layer.updateFields()
-
-    linhas_layer.startEditing()
-
-    features = []
-    linha_id = 1
-
-    # Coordenadas da linha base (2D)
-    coords_base = linha_base_geom.asPolyline()
-
-    for altura in alturas:
-        # Criar pontos com Z
-        coords_z = [QgsPoint(pt.x(), pt.y(), float(altura)) for pt in coords_base]
-
-        geom_z = QgsGeometry.fromPolyline(coords_z)
-
-        feat = QgsFeature()
-        feat.setGeometry(geom_z)
-        feat.setAttributes([linha_id, float(altura)])
-
-        features.append(feat)
-        linha_id += 1
-
-    provider.addFeatures(features)
-
-    linhas_layer.commitChanges()
-    linhas_layer.updateExtents()
-
-    # ===== Reprojetar para WGS84 =========================================
-    linhas_reproj = reprojeta_camada_WGS84(
-        linhas_layer,
-        crs_wgs,
-        transformador
-    )
-
-    # Garantir LineStringZ
-    linhas_reproj = set_Z_value(linhas_reproj, z_field="height")
-
-    return linhas_reproj
-
-def simbologiaLinhaVoo3D(layer):
-    if not layer or layer.geometryType() != QgsWkbTypes.LineGeometry:
-        return
-
-    renderer3d = QgsVectorLayer3DRenderer()
-
-    symbol3d = QgsLine3DSymbol()
-    symbol3d.setWidth(0.6)
-    symbol3d.setAltitudeClamping(Qgis.AltitudeClamping.Absolute)
-
-    material = QgsPhongMaterialSettings()
-    material.setDiffuse(QColor(255, 0, 0))
-    material.setAmbient(QColor(120, 0, 0))
-    material.setSpecular(QColor(255, 255, 255))
-    material.setShininess(20)
-
-    symbol3d.setMaterialSettings(material)
-
-    renderer3d.setSymbol(symbol3d)
-    layer.setRenderer3D(renderer3d)
-
-    layer.trigger3DUpdate()
-    
-    return
-
-
-# Transformar distancia em metros para graus
-def meters2degrees(dist, lat, SRC):
+def meters2degrees(dist, lat, SRC): # Transformar distancia em metros para graus
     ellipsoid_id = SRC.ellipsoidAcronym()
     ellipsoid = QgsEllipsoidUtils.ellipsoidParameters(ellipsoid_id)
     a = ellipsoid.semiMajor
@@ -839,9 +328,7 @@ def meters2degrees(dist, lat, SRC):
     theta = np.degrees(theta) # Radianos para graus
     return theta
 
-
-# Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
-def azimute(A, B):
+def azimute(A, B): # Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
     dx = B.x() - A.x()
     dy = B.y() - A.y()
 
@@ -933,23 +420,6 @@ def pontos_na_linha(geom_linha, deltaFront_graus, altVoo, azimute_func):
     })
 
     return pontos
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
     """
@@ -1058,8 +528,6 @@ def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
 
     return linhas_orientadas
 
-
-
 def pontos_conexao(p_fim, p_ini, altVoo):
     """Coloca um ponto de foto no meio de cada segmento de conexao entre linhas.
     Nao inclui p_fim nem p_ini (ja estao em LISTA_PONTOS).
@@ -1070,7 +538,6 @@ def pontos_conexao(p_fim, p_ini, altVoo):
         'height':    altVoo,
         'bowangle':  0  # corrigido por heading_para_proximo
     }]
-
 
 def heading_para_proximo(LISTA_PONTOS, azimute_func):
     """
@@ -1089,26 +556,6 @@ def heading_para_proximo(LISTA_PONTOS, azimute_func):
         LISTA_PONTOS[i]['bowangle'] = ultimo_az
     if LISTA_PONTOS:
         LISTA_PONTOS[-1]['bowangle'] = ultimo_az
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
     coords_linha = " ".join(
@@ -1239,3 +686,38 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
         return None
 
     return layer
+
+
+
+
+
+
+def simbologiaPontos(layer):
+   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
+   renderer = QgsSingleSymbolRenderer(simbolo)
+   layer.setRenderer(renderer)
+
+   # Rótulos
+   settings = QgsPalLayerSettings()
+   settings.fieldName = "id"
+   settings.isExpression = True
+   settings.enabled = True
+
+   textoF = QgsTextFormat()
+   textoF.setFont(QFont("Arial", 10, QFont.Bold))
+   textoF.setSize(10)
+
+   bufferS = QgsTextBufferSettings()
+   bufferS.setEnabled(True)
+   bufferS.setSize(1)  # Tamanho do buffer em milímetros
+   bufferS.setColor(QColor("white"))  # Cor do buffer
+
+   textoF.setBuffer(bufferS)
+   settings.setFormat(textoF)
+
+   layer.setLabelsEnabled(True)
+   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+
+   layer.triggerRepaint()
+
+   return

@@ -39,7 +39,7 @@ from .Funcs import (
 
 class PlanoVoo_VC(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        pontoInicialVC, hObjVC, altMinVC, nPartesVC, dVertVC, velocVC, tStayVC, gimbalVC, csvVC = loadParametros("VC")
+        pontoInicialVC, hObjVC, altMinVC, anguloFotoVC, dVertVC, velocVC, tStayVC, gimbalVC, csvVC = loadParametros("VC")
 
         self.addParameter(QgsProcessingParameterFeatureSource('circuloRef','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterNumber('ponto_inicial','Start Point (0 a 359 degrees)',
@@ -50,10 +50,10 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hObjVC))
         self.addParameter(QgsProcessingParameterNumber('alturaMin','Start Height (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=altMinVC))
-        self.addParameter(QgsProcessingParameterNumber('numpartes','Horizontal Division into PARTS of Base Circle',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=4,defaultValue=nPartesVC))
         self.addParameter(QgsProcessingParameterNumber('deltaVertical','Vertical Spacing (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dVertVC))
+        self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle in degrees between Photos (degrees)',
+                                                       type=QgsProcessingParameterNumber.Integer, minValue=1, maxValue=90, defaultValue=anguloFotoVC))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
@@ -66,50 +66,53 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
     def processAlgorithm(self, parameters, context, feedback):
 
         # ===== Parâmetros de entrada para variáveis ===========================================
-        circuloRef = self.parameterAsSource(parameters, 'circuloRef', context)
-        ponto_inicial = self.parameterAsInteger(parameters, 'ponto_inicial', context)
-        H = self.parameterAsDouble(parameters, 'altura', context)
-        h = self.parameterAsDouble(parameters, 'alturaMin', context)
-        terrain = self.parameterAsBool(parameters, 'aboveGround', context)
-        inverte = self.parameterAsBool(parameters, 'inverte', context)
-        numpartes = self.parameterAsInteger(parameters, 'numpartes', context) # deltaH será calculado
-        deltaV = self.parameterAsDouble(parameters, 'deltaVertical', context)
-        velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
-        tempo = self.parameterAsDouble(parameters, 'tempo', context)
-        gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
-        arquivo_csv = self.parameterAsFile(parameters, 'saida_csv', context)
-        abrir_kml = self.parameterAsBool(parameters, 'kml', context)
+        circuloRef   = self.parameterAsSource(parameters, 'circuloRef', context)
+        ponto_inicial = self.parameterAsInt(parameters, 'ponto_inicial', context)
+        H            = self.parameterAsDouble(parameters, 'altura', context)
+        h            = self.parameterAsDouble(parameters, 'alturaMin', context)
+        terrain      = self.parameterAsBool(parameters, 'aboveGround', context)
+        inverte      = self.parameterAsBool(parameters, 'inverte', context)
+        anguloFoto   = self.parameterAsDouble(parameters, 'anguloFoto', context)  # graus entre fotos
+        deltaV       = self.parameterAsDouble(parameters, 'deltaVertical', context)
+        velocidade   = self.parameterAsDouble(parameters, 'velocidade', context)
+        tempo        = self.parameterAsDouble(parameters, 'tempo', context)
+        gimbalAng    = self.parameterAsDouble(parameters, 'gimbalAng', context)
+        arquivo_csv  = self.parameterAsFile(parameters, 'saida_csv', context)
+        abrir_kml    = self.parameterAsBool(parameters, 'kml', context)
 
         # ===== Verificações ==================================================================
+
         if circuloRef.featureCount() != 1:
             raise QgsProcessingException("❌ Select 1 circle feature!")
-        
-        # A geometria da linha deve ser válida
+
         feat = next(circuloRef.getFeatures())
         geom_ref = feat.geometry()
         if not geom_ref or geom_ref.isEmpty():
             raise QgsProcessingException("❌ Invalid circle geometry!")
-        
-        # Verificar caminho das pastas
+
         if 'saida_csv' not in parameters:
             raise QgsProcessingException("❌ Path to CSV file is empty!")
-        if arquivo_csv:
-            if not os.path.exists(os.path.dirname(arquivo_csv)):
-                raise QgsProcessingException("❌ Path to CSV file does not exist!")
+        if arquivo_csv and not os.path.exists(os.path.dirname(arquivo_csv)):
+            raise QgsProcessingException("❌ Path to CSV file does not exist!")
 
         # ===== Grava Parâmetros =====================================================
         saveParametros("VC",
-                        ponto_inicial=parameters['ponto_inicial'],
+                        pontoInicial=parameters['ponto_inicial'],
                         h=parameters['altura'],
                         v=parameters['velocidade'],
                         t=parameters['tempo'],
                         gimbal=parameters['gimbalAng'],
                         csv=arquivo_csv,
                         altMin=parameters['alturaMin'],
-                        nPartesVC=parameters['numpartes'],
+                        anguloFotoVC=parameters['anguloFoto'],
                         dVertVC=parameters['deltaVertical'])
 
         # ===============================================================================
+        # Lendo a Linha de Referência da Fachada
+        feat = next(circuloRef.getFeatures())
+        circulo_base_geom = feat.geometry()
+        crs = circuloRef.sourceCrs()
+        
         # Reprojetar para WGS 84
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
         transformador = QgsCoordinateTransform(crs, crs_wgs, QgsProject.instance())
@@ -121,76 +124,72 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
         
         # Cálculo do Raio: Distância do centro ao primeiro vértice da borda do círculo
         if circulo_base_geom.isMultipart():
-            ponto_borda = circulo_base_geom.asMultiPolyline()[0][0]
+            ponto_borda = circulo_base_geom.asMultiPolygon()[0][0][0]
         else:
-            ponto_borda = circulo_base_geom.asPolyline()[0]
-        
+            ponto_borda = circulo_base_geom.asPolygon()[0][0]
+
         raio = math.sqrt((ponto_borda.x() - cx)**2 + (ponto_borda.y() - cy)**2)
 
-        # Gerar a LISTA base de pontos sobre o círculo (divisão por numPartes)
+        # Número de pontos por volta calculado pelo ângulo entre fotos
+        numPartes = max(4, int(round(360.0 / anguloFoto)))
+        passo_angular = 360.0 / numPartes
+
+        # Comprimento do arco entre fotos (para o CSV)
+        deltaFront_m = 2 * math.pi * raio * anguloFoto / 360.0
+
+        feedback.pushInfo(f"✅ Radius: {raio:.4f}°  Angle between photos: {anguloFoto:.1f}°  "
+                          f"→ {numPartes} points/circle  Arc spacing: {deltaFront_m:.2f}°")
+
+        # Gerar LISTA_BASE de pontos sobre o círculo
         LISTA_BASE = []
-        passo_angular = 360.0 / numPartes      
-
         for i in range(numPartes):
-            # Ângulo atual em graus (iniciando do Norte/0°)
             angulo_graus = i * passo_angular
-            angulo_rad = math.radians(angulo_graus)
+            angulo_rad   = math.radians(angulo_graus)
 
-            # Coordenadas sobre a linha circular (X=seno, Y=cosseno para Azimute Norte)
             px = cx + raio * math.sin(angulo_rad)
             py = cy + raio * math.cos(angulo_rad)
 
-            # Cálculo do Bow Angle: O drone deve olhar para o centro do círculo
-            # Vetor do ponto (px, py) para o centro (cx, cy)
+            # Bowangle: drone aponta para o centro
             dx = cx - px
             dy = cy - py
-            # math.atan2(dx, dy) retorna o azimute em radianos para o sistema náutico
-            azimute_para_centro = math.degrees(math.atan2(dx, dy)) % 360
+            azimute_centro = math.degrees(math.atan2(dx, dy)) % 360
 
             LISTA_BASE.append({
-                'longitude': float(px),
-                'latitude': float(py),
-                'height': 0.0,
-                'bowangle': int(azimute_para_centro),
+                'longitude':         float(px),
+                'latitude':          float(py),
+                'height':            0.0,
+                'bowangle':          int(azimute_centro),
                 'angulo_referencia': angulo_graus
             })
 
-        # Ajustar Ponto Inicial baseado no Azimute fornecido (ponto_inicial_az)
-        # Encontra o índice na lista que mais se aproxima do azimute inicial desejado
-        idx_inicio = min(range(len(LISTA_BASE)), 
-                        key=lambda i: abs(LISTA_BASE[i]['angulo_referencia'] - (ponto_inicial_az % 360)))
-        
-        # Rotaciona a lista para começar no ponto do azimute escolhido
+        # Ajustar ponto inicial pelo azimute digitado
+        idx_inicio = min(range(len(LISTA_BASE)),
+                         key=lambda i: abs(LISTA_BASE[i]['angulo_referencia'] - (ponto_inicial % 360)))
         LISTA_BASE = LISTA_BASE[idx_inicio:] + LISTA_BASE[:idx_inicio]
 
-        # Gerar as linhas de voo paralelas (Alturas) - Alturas de h até H com espaçamento dVertVC
-        alturas = np.arange(h, H + dVertVC, dVertVC)
-        
+        # Gerar LISTA_PONTOS (serpentina por alturas)
+        alturas = np.arange(h, H + deltaV, deltaV)
         if inverte:
-            alturas = alturas[::-1] # De cima para baixo se REVERSE estiver ticado
+            alturas = alturas[::-1]
 
         LISTA_PONTOS = []
-        direcao = 1 # Controle para efeito snake (zigue-zague)
-
+        direcao = 1
         for alt in alturas:
-            # Itera sobre a LISTA_BASE seguindo a direção atual
-            fatiada = LISTA_BASE[::direcao]
-            for pnt in fatiada:
+            for pnt in LISTA_BASE[::direcao]:
                 novo_pnt = pnt.copy()
                 novo_pnt['height'] = float(alt)
-                # Remove o dado auxiliar de ordenação para limpar a saída
                 del novo_pnt['angulo_referencia']
                 LISTA_PONTOS.append(novo_pnt)
-            
-            # Inverte a direção para a próxima altura (snake pattern)
             direcao *= -1
+
+        feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(alturas)} flight level(s).")
 
         # ============= L I T C H I ================================================================
 
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'):
-            gerar_CSV("VC", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaH, 0, H, gimbalAng, terrain)
+            gerar_CSV("VC", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront_m, 0, H, gimbalAng, terrain)
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")

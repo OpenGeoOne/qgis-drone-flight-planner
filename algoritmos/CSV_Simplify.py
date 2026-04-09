@@ -21,19 +21,17 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
-from .Funcs import verificar_plugins, simbologiaPontos, loadParametros, saveParametros
+from .Funcs import simbologiaPontos, loadParametros, saveParametros
 from ..images.Imgs import *
 import processing
 import csv
 import os
 import tempfile
-import math
 import uuid
 
 class CSV_Simplify(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        csvInSimplified, csvOutSimplified, rasterSimplified, toleranceSimplified, addPCsvSimplified, addPSimplified, addLSimplified = loadParametros("H_Simplified")
+        csvInSimplified, csvOutSimplified, toleranceSimplified, addPCsvSimplified, addPSimplified, addLSimplified = loadParametros("H_Simplified")
        
         self.addParameter(QgsProcessingParameterFile(
             'voo_em_csv', 
@@ -112,13 +110,12 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         # Verificar se o(s) plugin(s) instalado(s)
         plugins_verificar = ["lftools"]
         feedback = QgsProcessingFeedback()
-        verificar_plugins(plugins_verificar, feedback)
+        # verificar_plugins(plugins_verificar, feedback)
 
         # Grava Parâmetros
         saveParametros("H_Simplified",
                         csvI=arquivo_csvIn,
                         csv=arquivo_csvOut,
-                        raster=arquivo_DEM,
                         crs=parameters['src_projetado'],
                         tol=parameters['tolerancia'],
                         add1=parameters['adicionar_pontos_csv'],
