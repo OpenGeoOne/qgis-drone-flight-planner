@@ -58,7 +58,7 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
          writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
          writer.writeheader()
 
-         if flight_type == "H" or flight_type == "L":
+         if flight_type == "H" or flight_type == "S" or flight_type == "L":
             alturavoo = H
             mode_gimbal = 2
             angulo_gimbal = gimbalAng
@@ -114,8 +114,8 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
                if flight_type == "VF" or flight_type == "VC":
                   alturavoo = ponto['height']
                   angulo = ponto['bowangle']
-               elif flight_type == "L":
-                  angulo = ponto['bowangle']   # heading aponta para o próximo waypoint
+               elif flight_type in ("L", "H_RC2"):
+                  angulo = ponto['bowangle']
 
                # Criar um dicionário de dados para cada item do CSV
                data = {

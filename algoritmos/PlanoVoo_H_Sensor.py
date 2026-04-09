@@ -153,10 +153,10 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         centroide = poligono_geom.centroid().asPoint()
         latitude_ref = centroide.y()
 
-        dc_g = meters2degrees(dc / 1000, latitude_ref, crs)   # largura sensor em graus
-        dl_g = meters2degrees(dl / 1000, latitude_ref, crs)   # altura sensor em graus
-        f_g  = meters2degrees(f  / 1000, latitude_ref, crs)   # focal em graus
-        alt_g = meters2degrees(altVoo, latitude_ref, crs)      # altura de voo em graus    
+        dc_g = meters2degrees(dc / 1000, latitude_ref, crs) 
+        dl_g = meters2degrees(dl / 1000, latitude_ref, crs) 
+        f_g  = meters2degrees(f  / 1000, latitude_ref, crs)  
+        alt_g = meters2degrees(altVoo, latitude_ref, crs)     
         
         # Cálculo dos Espaçamentos Lateral e Frontal entre as fotografias
         tg_L = dc_g / (2 * f_g)
@@ -223,7 +223,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         feedback.pushInfo("")
 
         if arquivo_csv and arquivo_csv.endswith('.csv'):
-            gerar_CSV("L", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront_m, 0, altVoo, gimbalAng, terrain)
+            gerar_CSV("S", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront_m, 0, altVoo, gimbalAng, terrain)
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
@@ -239,7 +239,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
 
         # ============= Mensagem de Encerramento =====================================================
         feedback.pushInfo("")
-        feedback.pushInfo("✅ Horizontal Flight Sensor Plan successfully executed.")
+        feedback.pushInfo("✅ Horizontal Sensor Flight Plan successfully executed.")
         feedback.pushInfo("")
 
         return {'csv': arquivo_csv,
@@ -337,7 +337,6 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
                 processing.run("lftools:magicstyles", params)
             except:
                 feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
-
 
         # ================= Abrir KML no Google Earth =================
         if hasattr(self, 'abrir_kml') and self.abrir_kml:
