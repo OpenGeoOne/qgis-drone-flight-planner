@@ -21,13 +21,13 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
-from .Funcs import simbologiaPontos, loadParametros, saveParametros
 from ..images.Imgs import *
 import processing
 import csv
 import os
 import tempfile
 import uuid
+from .Funcs import loadParametros, saveParametros
 
 class CSV_Simplify(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -217,8 +217,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
                     pontos_csv_layer.setName(f"{csv_name} - Original CSV")
                     QgsProject.instance().addMapLayer(pontos_csv_layer)
-                    # Simbologia
-                    simbologiaPontos(pontos_csv_layer)
+                    
                     feedback.pushInfo("✓ CSV point layer added to project")
 
         except Exception as e:

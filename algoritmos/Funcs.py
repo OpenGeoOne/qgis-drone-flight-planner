@@ -108,10 +108,6 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
                "photo_distinterval": f"{dist_interval:.2f}"}
             writer.writerow(data)
 
-def addCampo(layer, field_name, field_type):
-      layer.dataProvider().addAttributes([QgsField(field_name, field_type)])
-      layer.updateFields()
-
 def verificar_plugins(plugins_list, feedback=None):
     # Obter a lista de todos os plugins instalados
     installed_plugins = qgis.utils.plugins.keys()
@@ -317,36 +313,6 @@ def meters2degrees(dist, lat, SRC): # Transformar distancia em metros para graus
     theta = dist/R
 
     return np.degrees(theta)
-
-def meters2degrees_direcional(dist_m, lat, SRC, azimute_graus):
-    """
-    Converte metros para graus considerando a direção do deslocamento.
-    - Norte-sul (az=0°/180°): usa raio meridiano M
-    - Leste-oeste (az=90°/270°): usa N*cos(lat) — correto para longitude
-    - Intermediário: interpolação correta por componentes
-    """
-    ellipsoid_id = SRC.ellipsoidAcronym()
-    ellipsoid = QgsEllipsoidUtils.ellipsoidParameters(ellipsoid_id)
-    a = ellipsoid.semiMajor
-    f_inv = ellipsoid.inverseFlattening
-    f = 1 / f_inv
-    e2 = f * (2 - f)
-
-    lat_rad = np.radians(lat)
-    sin_lat = np.sin(lat_rad)
-    cos_lat = np.cos(lat_rad)
-
-    N = a / np.sqrt(1 - e2 * sin_lat**2)
-    M = a * (1 - e2) / (1 - e2 * sin_lat**2)**(3/2)
-
-    az_rad = np.radians(azimute_graus)
-    sin_az = np.sin(az_rad)
-    cos_az = np.cos(az_rad)
-
-    # Raio efetivo: componente NS usa M, componente EW usa N*cos(lat)
-    R_dir = 1.0 / (sin_az**2 / (N * cos_lat) + cos_az**2 / M)
-
-    return np.degrees(dist_m / R_dir)
 
 def azimute(A, B): # Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
     dx = B.x() - A.x()
@@ -815,47 +781,3 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def simbologiaPontos(layer):
-   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
-   renderer = QgsSingleSymbolRenderer(simbolo)
-   layer.setRenderer(renderer)
-
-   # Rótulos
-   settings = QgsPalLayerSettings()
-   settings.fieldName = "id"
-   settings.isExpression = True
-   settings.enabled = True
-
-   textoF = QgsTextFormat()
-   textoF.setFont(QFont("Arial", 10, QFont.Bold))
-   textoF.setSize(10)
-
-   bufferS = QgsTextBufferSettings()
-   bufferS.setEnabled(True)
-   bufferS.setSize(1)  # Tamanho do buffer em milímetros
-   bufferS.setColor(QColor("white"))  # Cor do buffer
-
-   textoF.setBuffer(bufferS)
-   settings.setFormat(textoF)
-
-   layer.setLabelsEnabled(True)
-   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-
-   layer.triggerRepaint()
-
-   return
