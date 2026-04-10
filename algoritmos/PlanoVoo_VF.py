@@ -19,22 +19,18 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
     meters2degrees,
-    salvar_kml,
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
     salvar_outputs,
     post_process_comum
 )
@@ -158,6 +154,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         else:
             coord = offset_geom.asPolyline()
         LISTA = []
+
         # Criar lista de pontos e distancias
         ListaDist = [0]
         soma = 0
@@ -169,6 +166,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
             m = distancia(point1, point2)
             soma += m
             ListaDist += [soma]
+
         # Numero de Secoes e Nova Distancia
         if distSec < comprimento:
             NumSec = np.floor(comprimento/distSec)
@@ -177,6 +175,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         else:
             NumSec, DistSecNova = 1, comprimento
             dist = np.arange(0, comprimento+DistSecNova, DistSecNova)
+
         # Cálculo do azimute - direção perpendicular à linha
         cont = 0
         for k in range(len(coord)-1):
@@ -200,6 +199,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                     break
             if cont == NumSec +1:
                 break
+
         # Última seção
         cont +=1
         point1 =  np.array([coord[-2].x(), coord[-2].y()])
@@ -228,10 +228,9 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                 LISTA_PONTOS.append(novo_pnt)
             direcao *= -1
 
+        feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(alturas)} flight level(s).")
+    
         # ============= L I T C H I   &   K M L ==========================================================
-
-        feedback.pushInfo("")
-
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "VF", velocidade, tempo,
                                            deltaFront, 0, H, gimbalAng, terrain)
