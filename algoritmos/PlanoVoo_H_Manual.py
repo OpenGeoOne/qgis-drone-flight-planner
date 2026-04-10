@@ -19,27 +19,20 @@ __copyright__ = '(C) 2024 by Prof Cazaroli and Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl, QVariant
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
     meters2degrees,
-    salvar_kml,
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
-    distancia,
-    pontos_na_linha,
     linhas_voo_poligono,
     heading_para_proximo,
-    pontos_conexao,
     criar_layer_path,
     montar_LISTA_PONTOS,
     salvar_outputs,
@@ -132,9 +125,10 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         if deltaFrontOpc == 0:
             feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Spacing: {deltaFront:.2f} m")
         else:
-            feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Time: {deltaFront:.2f} s")
+            feedback.pushInfo(f"✅ There is no Front Time.")
 
         # ===============================================================================
+
         # Reprojetar para WGS 84
         crs = area_layer.sourceCrs()
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
@@ -143,14 +137,13 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         poligono_geom.transform(transformador)
         linha_geom.transform(transformador)
 
-        # Converter sensor de mm para graus 
-        centroide = poligono_geom.centroid().asPoint()
+        # ===== Distâncias em graus ======================================================================
+        centroide    = poligono_geom.centroid().asPoint()
         latitude_ref = centroide.y()
-
         deltaLat_g   = meters2degrees(deltaLat,   latitude_ref, crs)
         deltaFront_g = meters2degrees(deltaFront, latitude_ref, crs)
 
-        # Extrair coordenadas da linha base e do polígono 
+        # ===== Extrair coordenadas ======================================================================
         if linha_geom.isMultipart():
             linha_pts = linha_geom.asMultiPolyline()[0]
         else:
@@ -163,11 +156,10 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
 
         p1 = QgsPointXY(linha_pts[0])
 
-        # Gerar linhas de voo e montar LISTA_PONTOS em serpentina
+        # ===== Linhas de voo ============================================================================
         linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat_g)
 
-        # Por distância → mesmo raciocínio do Sensor
-        # Por tempo     → mesmo raciocínio do RC2 (só extremidades)
+        # ===== LISTA_PONTOS =============================================================================
         if deltaFrontOpc == 0:
             LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute, p1,
                                                modo='distancia')
@@ -181,16 +173,14 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
 
         # ============= L I T C H I   &   K M L ==========================================================
-
-        feedback.pushInfo("")
-
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             if deltaFrontOpc == 0:  # por distância → mesmo que Sensor
                 self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
                                            deltaFront, 0, altVoo, gimbalAng, terrain, None)
             else:                   # por tempo → mesmo que RC2
                 self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,
-                                            deltaFront, 360, altVoo, gimbalAng, terrain, 1)
+                                           deltaFront, 360, altVoo, gimbalAng, terrain, 1)
+
             feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
@@ -198,7 +188,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml
 
-        # ============= Mensagem de Encerramento =====================================================
+        # ============= Encerramento ==========================================================
         feedback.pushInfo("")
         feedback.pushInfo("✅ Horizontal Manual Flight Plan successfully executed.")
         feedback.pushInfo("")

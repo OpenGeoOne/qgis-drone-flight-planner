@@ -19,32 +19,26 @@ __copyright__ = '(C) 2024 by Prof Cazaroli and Leandro França (Professor Ilton 
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
     meters2degrees,
-    salvar_kml,
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
-    distancia,
-    pontos_na_linha,
     linhas_voo_poligono,
     heading_para_proximo,
-    pontos_conexao,
     criar_layer_path,
     montar_LISTA_PONTOS,
     salvar_outputs,
     post_process_comum
 )
+
 
 class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -160,8 +154,8 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         dc_g = meters2degrees(dc / 1000, latitude_ref, crs) 
         dl_g = meters2degrees(dl / 1000, latitude_ref, crs) 
         f_g  = meters2degrees(f  / 1000, latitude_ref, crs)  
-        alt_g = meters2degrees(altVoo, latitude_ref, crs)     
-        
+        alt_g = meters2degrees(altVoo, latitude_ref, crs)
+
         # Cálculo dos Espaçamentos Lateral e Frontal entre as fotografias
         tg_L = dc_g / (2 * f_g)
         D_lat = dc_g * alt_g / f_g
@@ -177,11 +171,12 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         deltaFront = SD_front * (alt_g / h1_F - 1)
 
         # deltaFront em metros para o CSV
+        deltaLat_m = deltaLat / meters2degrees(1, latitude_ref, crs)
         deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
 
-        feedback.pushInfo(f"✅ Lateral spacing: {deltaLat:.6f}°  Frontal spacing: {deltaFront:.6f}°  ({deltaFront_m:.2f} m)")
+        feedback.pushInfo(f"✅ Lateral spacing: {deltaLat_m:.2f} m  Frontal spacing: {deltaFront_m:.2f} m")
 
-        # Extrair coordenadas da linha base e do polígono 
+        # Extrair coordenadas da linha base e do polígono
         if linha_geom.isMultipart():
             linha_pts = linha_geom.asMultiPolyline()[0]
         else:
@@ -193,22 +188,23 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
             pol_pts = poligono_geom.asPolygon()[0]
 
         p1 = QgsPointXY(linha_pts[0])
-        
-        # Gerar linhas de voo e montar LISTA_PONTOS em serpentina
+
+        # ===== Linhas de voo ============================================================================
         linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat)
+
+        # ===== LISTA_PONTOS =============================================================================
         LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, deltaFront, altVoo, azimute, p1, modo='distancia')
+        
         heading_para_proximo(LISTA_PONTOS, azimute)
         self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
 
-        feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
+        feedback.pushInfo(f"\u2705 {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
 
         # ============= L I T C H I   &   K M L ==========================================================
-
-        feedback.pushInfo("")
-
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
-                                           deltaFront_m, 0, altVoo, gimbalAng, terrain)
+                                               deltaFront, 0, altVoo, gimbalAng, terrain, None)
+            
             feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
@@ -216,9 +212,9 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml
 
-        # ============= Mensagem de Encerramento =====================================================
+        # ============= Encerramento ==========================================================
         feedback.pushInfo("")
-        feedback.pushInfo("✅ Horizontal Sensor Flight Plan successfully executed.")
+        feedback.pushInfo("✅ Horizontal Manual Flight Plan successfully executed.")
         feedback.pushInfo("")
 
         return {'csv': arquivo_csv, 'kml': self.kml_path}

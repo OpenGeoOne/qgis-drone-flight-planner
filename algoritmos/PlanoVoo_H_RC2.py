@@ -19,30 +19,23 @@ __copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl, QVariant
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
     meters2degrees,
-    salvar_kml,
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
-    distancia,
-    pontos_na_linha,
     linhas_voo_poligono,
     heading_para_proximo,
     pontos_conexao,
-    criar_layer_path,
-    montar_LISTA_PONTOS,
     salvar_outputs,
+    criar_layer_path,
     post_process_comum
 )
 
@@ -122,6 +115,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         centroide = linha_geom.centroid().asPoint()
         latitude_ref = centroide.y()
 
+        # deltaLat: perpendicular às linhas → az_perp
         deltaLat_g = meters2degrees(deltaLat, latitude_ref, crs)
 
         feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m")
@@ -139,21 +133,51 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
 
         p1 = QgsPointXY(linha_pts[0])
 
-        # Gerar linhas de voo e montar LISTA_PONTOS em serpentina
+        # Gerar linhas de voo 
         linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat_g)
-        LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, 0, altVoo, azimute, p1, modo='bordas')
+        
+        # Montar LISTA_PONTOS: apenas extremidades de cada linha
+        # RC2: o drone voa a linha inteira com a câmera controlada pelo RC2 —
+        # apenas 2 waypoints por linha (início e fim) + ponto de conexão entre linhas
+        LISTA_PONTOS = []
+        direcao = 1
+
+        for geom_linha in linhas_voo:
+            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
+            if not pts:
+                continue
+
+            if direcao == 1:
+                ini = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
+                fim = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
+            else:
+                ini = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
+                fim = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
+
+            if LISTA_PONTOS:
+                LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], ini, altVoo))
+            LISTA_PONTOS.append(ini)
+            LISTA_PONTOS.append(fim)
+            direcao *= -1
+
+        # Garantir que o voo começa pelo lado de p1
+        if LISTA_PONTOS:
+            d_ini = (LISTA_PONTOS[0]['longitude']  - p1.x())**2 + (LISTA_PONTOS[0]['latitude']  - p1.y())**2
+            d_fim = (LISTA_PONTOS[-1]['longitude'] - p1.x())**2 + (LISTA_PONTOS[-1]['latitude'] - p1.y())**2
+            if d_fim < d_ini:
+                LISTA_PONTOS.reverse()
+
+        # Heading
         heading_para_proximo(LISTA_PONTOS, azimute)
         self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
 
         feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
 
         # ============= L I T C H I   &   K M L ==========================================================
-
-        feedback.pushInfo("")
-
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,
                                            0, 360, altVoo, gimbalAng, terrain, 0)
+            
             feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
