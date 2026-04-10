@@ -19,28 +19,22 @@ __copyright__ = '(C) 2025 by Prof Cazaroli and Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
     meters2degrees,
-    salvar_kml,
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
-    distancia,
     pontos_na_linha,
     heading_para_proximo,
     pontos_conexao,
     criar_layer_path,
-    montar_LISTA_PONTOS,
     salvar_outputs,
     post_process_comum
 )
@@ -205,25 +199,19 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         
         # Heading: cada ponto aponta para o próximo waypoint
         heading_para_proximo(LISTA_PONTOS, azimute)
+        self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
 
         # =============L I T C H I==========================================================
-
-        feedback.pushInfo("")
-
-        if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("L", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront, 0, altVoo, gimbalAng, terrain, n_linhas)
+        if arquivo_csv and arquivo_csv.endswith('.csv'):
+            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
+                                           deltaFront, 0, altVoo, gimbalAng, terrain, None)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
         # ============= Criar KML do caminho (path) ===============================================        
-        base, ext = os.path.splitext(arquivo_csv)
-        caminho_kml = base + ".kml"
-        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
-
         self.csv_path = arquivo_csv
-        self.kml_path = caminho_kml
         self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
@@ -232,8 +220,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         feedback.pushInfo("✅ Horizontal Linear Flight Plan successfully executed.")
         feedback.pushInfo("")
         
-        return {'csv': arquivo_csv,
-                'kml': caminho_kml}
+        return {'csv': arquivo_csv, 'kml': self.kml_path}
 
     def name(self):
         return 'Flight_Plan_H_Line'
@@ -295,9 +282,10 @@ The result is a <b>Litchi-compatible CSV</b> and optional flight line and waypoi
     
     def postProcessAlgorithm(self, context, feedback):        
         post_process_comum(context, feedback,
-                       layer_path=self.layer_path,
-                       csv_path=self.csv_path,
-                       kml_path=self.kml_path,
-                       abrir_kml=self.abrir_kml)
+                           layer_path=getattr(self, 'layer_path', None),
+                           csv_path=getattr(self, 'csv_path', None),
+                           kml_path=getattr(self, 'kml_path', None),
+                           abrir_kml=getattr(self, 'abrir_kml', False))
+
         return {}
         
