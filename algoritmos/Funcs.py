@@ -536,7 +536,8 @@ def pontos_conexao(p_fim, p_ini, altVoo):
         'longitude': (p_fim['longitude'] + p_ini['longitude']) / 2,
         'latitude':  (p_fim['latitude']  + p_ini['latitude'])  / 2,
         'height':    altVoo,
-        'bowangle':  0  # corrigido por heading_para_proximo
+        'bowangle':  0,
+        'foto': False
     }]
 
 def heading_para_proximo(LISTA_PONTOS, azimute_func):
@@ -686,6 +687,277 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
         return None
 
     return layer
+
+
+
+
+
+
+
+    """Cria camada MultiLineString com as linhas de voo (sem conexões) para o QGIS.
+    RC2 e Manual por Tempo"""
+    nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
+    layer_path = QgsVectorLayer('MultiLineString?crs=EPSG:4326', nome_path, 'memory')
+    prov_path = layer_path.dataProvider()
+    prov_path.addAttributes([QgsField('id', QVariant.Int)])
+    layer_path.updateFields()
+
+    multi_geom = QgsGeometry.collectGeometry([g for g in linhas_voo if g and not g.isEmpty()])
+    feat_path = QgsFeature()
+    feat_path.setGeometry(multi_geom)
+    feat_path.setAttributes([1])
+    prov_path.addFeatures([feat_path])
+    layer_path.updateExtents()
+
+    line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
+    seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
+    marcador = QgsMarkerLineSymbolLayer()
+    marcador.setInterval(30)
+    marcador.setSubSymbol(seta)
+    line_symbol.appendSymbolLayer(marcador)
+    layer_path.setRenderer(QgsSingleSymbolRenderer(line_symbol))
+
+    return layer_path
+
+
+    """
+    Monta LISTA_PONTOS em serpentina a partir das linhas de voo.
+
+    modo='distancia' : pontos ao longo de cada linha (pontos_na_linha)
+    modo='bordas'    : apenas extremidades de cada linha (RC2 / Manual por tempo)
+    """
+    LISTA_PONTOS = []
+    direcao = 1
+
+    for geom_linha in linhas_voo:
+        if modo == 'distancia':
+            pontos = pontos_na_linha(geom_linha, deltaFront_g, altVoo, azimute_func)
+            pontos_linha = pontos[::direcao]
+        else:  # bordas
+            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
+            if not pts:
+                direcao *= -1
+                continue
+            if direcao == 1:
+                pontos_linha = [
+                    {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0},
+                    {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
+                ]
+            else:
+                pontos_linha = [
+                    {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0},
+                    {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
+                ]
+
+        if LISTA_PONTOS and pontos_linha:
+            LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], pontos_linha[0], altVoo))
+        LISTA_PONTOS.extend(pontos_linha)
+        direcao *= -1
+
+    # Garantir que o voo começa pelo lado de p1
+    if LISTA_PONTOS:
+        d_ini = (LISTA_PONTOS[0]['longitude']  - p1.x())**2 + (LISTA_PONTOS[0]['latitude']  - p1.y())**2
+        d_fim = (LISTA_PONTOS[-1]['longitude'] - p1.x())**2 + (LISTA_PONTOS[-1]['latitude'] - p1.y())**2
+        if d_fim < d_ini:
+            LISTA_PONTOS.reverse()
+
+    return LISTA_PONTOS
+
+
+
+
+
+
+
+
+    """Cria camada MultiLineString com as linhas de voo na direção correta da serpentina."""
+    nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
+    layer_path = QgsVectorLayer('MultiLineString?crs=EPSG:4326', nome_path, 'memory')
+    prov_path = layer_path.dataProvider()
+    prov_path.addAttributes([QgsField('id', QVariant.Int)])
+    layer_path.updateFields()
+
+    # Quebrar nos pontos de conexão (foto=False) — igual ao salvar_kml
+    segmentos = []
+    seg = []
+    for ponto in LISTA_PONTOS:
+        tem_foto = ponto['foto'] if 'foto' in ponto else True
+        if tem_foto:
+            seg.append(QgsPointXY(ponto['longitude'], ponto['latitude']))
+        else:
+            if len(seg) >= 2:
+                segmentos.append(seg)
+            seg = []
+    if len(seg) >= 2:
+        segmentos.append(seg)
+    if not segmentos:
+        segmentos = [[QgsPointXY(ponto['longitude'], ponto['latitude']) for ponto in LISTA_PONTOS]]
+
+    feats = []
+    for i, seg in enumerate(segmentos, start=1):
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolylineXY(seg))
+        f.setAttributes([i])
+        feats.append(f)
+    prov_path.addFeatures(feats)
+    layer_path.updateExtents()
+
+    line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
+    seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
+    marcador = QgsMarkerLineSymbolLayer()
+    marcador.setInterval(30)
+    marcador.setSubSymbol(seta)
+    line_symbol.appendSymbolLayer(marcador)
+    layer_path.setRenderer(QgsSingleSymbolRenderer(line_symbol))
+
+    return layer_path
+
+def criar_layer_path(LISTA_PONTOS, arquivo_csv):
+    """Cria camada de linhas de voo na direção correta da serpentina,
+    quebrando nos pontos de conexão (foto=False)."""
+    nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
+    layer_path = QgsVectorLayer('LineString?crs=EPSG:4326', nome_path, 'memory')
+    prov_path = layer_path.dataProvider()
+    prov_path.addAttributes([QgsField('id', QVariant.Int)])
+    layer_path.updateFields()
+
+    # Quebrar nos pontos de conexão (foto=False) — cada linha de voo vira uma feature
+    segmentos = []
+    seg = []
+    for ponto in LISTA_PONTOS:
+        eh_foto = ponto['foto'] if isinstance(ponto, dict) and 'foto' in ponto else True
+        if eh_foto:
+            seg.append(QgsPointXY(ponto['longitude'], ponto['latitude']))
+        else:
+            if len(seg) >= 2:
+                segmentos.append(seg)
+            seg = []
+    if len(seg) >= 2:
+        segmentos.append(seg)
+    if not segmentos:
+        segmentos = [[QgsPointXY(ponto['longitude'], ponto['latitude']) for ponto in LISTA_PONTOS]]
+
+    feats = []
+    for i, seg in enumerate(segmentos, start=1):
+        feat = QgsFeature()
+        feat.setGeometry(QgsGeometry.fromPolylineXY(seg))
+        feat.setAttributes([i])
+        feats.append(feat)
+    prov_path.addFeatures(feats)
+    layer_path.updateExtents()
+
+    line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
+    seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
+    marcador = QgsMarkerLineSymbolLayer()
+    marcador.setInterval(30)
+    marcador.setSubSymbol(seta)
+    line_symbol.appendSymbolLayer(marcador)
+    layer_path.setRenderer(QgsSingleSymbolRenderer(line_symbol))
+
+    return layer_path
+
+def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
+                         modo='distancia'):
+    """
+    Monta LISTA_PONTOS em serpentina a partir das linhas de voo.
+
+    modo='distancia' : pontos ao longo de cada linha (pontos_na_linha)
+    modo='bordas'    : apenas extremidades de cada linha (RC2 / Manual por tempo)
+    """
+    LISTA_PONTOS = []
+    direcao = 1
+
+    for geom_linha in linhas_voo:
+        if modo == 'distancia':
+            pontos = pontos_na_linha(geom_linha, deltaFront_g, altVoo, azimute_func)
+            pontos_linha = pontos[::direcao]
+        else:  # bordas
+            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
+            if not pts:
+                direcao *= -1
+                continue
+            if direcao == 1:
+                pontos_linha = [
+                    {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0},
+                    {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
+                ]
+            else:
+                pontos_linha = [
+                    {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0},
+                    {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
+                ]
+
+        if LISTA_PONTOS and pontos_linha:
+            LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], pontos_linha[0], altVoo))
+        LISTA_PONTOS.extend(pontos_linha)
+        direcao *= -1
+
+    # Garantir que o voo começa pelo lado de p1
+    # Usa o primeiro ponto da primeira linha de voo como referência
+    # (mais confiável que p1 quando a linha de ref não está sobre a borda)
+    if LISTA_PONTOS and linhas_voo:
+        primeira_linha = linhas_voo[0]
+        pts_ref = primeira_linha.asMultiPolyline()[0] if primeira_linha.isMultipart() else primeira_linha.asPolyline()
+        if pts_ref:
+            ref = QgsPointXY(pts_ref[0])  # extremo inicial da primeira linha de voo
+            d_ini = (LISTA_PONTOS[0]['longitude']  - ref.x())**2 + (LISTA_PONTOS[0]['latitude']  - ref.y())**2
+            d_fim = (LISTA_PONTOS[-1]['longitude'] - ref.x())**2 + (LISTA_PONTOS[-1]['latitude'] - ref.y())**2
+            if d_fim < d_ini:
+                LISTA_PONTOS.reverse()
+
+    return LISTA_PONTOS
+
+def salvar_outputs(LISTA_PONTOS, arquivo_csv, flight_type, velocidade, tempo,
+                   delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op=None):
+    """Gera CSV e KML. Retorna caminho do KML."""
+    if arquivo_csv and arquivo_csv.endswith('.csv'):
+        gerar_CSV(flight_type, LISTA_PONTOS, arquivo_csv, velocidade, tempo,
+                  delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op)
+
+    base, _ = os.path.splitext(arquivo_csv)
+    caminho_kml = base + ".kml"
+    salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
+
+    return caminho_kml
+
+def post_process_comum(context, feedback, layer_path=None, csv_path=None,
+                        kml_path=None, abrir_kml=False):
+    """postProcessAlgorithm comum a todos os voos horizontais."""
+    if layer_path:
+        QgsProject.instance().addMapLayer(layer_path)
+        feedback.pushInfo("✅ Flight path layer added to QGIS.")
+
+    if csv_path:
+        layer_pontos = csv_como_layer(csv_path, layer_name=None)
+        if layer_pontos is None or not layer_pontos.isValid():
+            feedback.reportError("❌ Could not load CSV as point layer.")
+        else:
+            QgsProject.instance().addMapLayer(layer_pontos)
+            feedback.pushInfo("✅ CSV point layer added to QGIS.")
+        try:
+            import processing
+            processing.run("lftools:magicstyles", {'LAYER': layer_pontos, 'STYLE_POINT': 1})
+        except:
+            feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
+
+    if abrir_kml and kml_path and os.path.exists(kml_path):
+        from qgis.PyQt.QtGui import QDesktopServices
+        from qgis.PyQt.QtCore import QUrl
+        ok = QDesktopServices.openUrl(QUrl.fromLocalFile(kml_path))
+        if ok:
+            feedback.pushInfo("✅ KML opened with the default application.")
+        else:
+            feedback.reportError("⚠️ Could not open the KML automatically.")
+
+
+
+
+
+
+
+
+
+
 
 
 

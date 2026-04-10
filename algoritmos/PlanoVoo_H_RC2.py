@@ -39,7 +39,11 @@ from .Funcs import (
     pontos_na_linha,
     linhas_voo_poligono,
     heading_para_proximo,
-    pontos_conexao
+    pontos_conexao,
+    criar_layer_path,
+    montar_LISTA_PONTOS,
+    salvar_outputs,
+    post_process_comum
 )
 
 class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
@@ -137,82 +141,24 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
 
         # Gerar linhas de voo e montar LISTA_PONTOS em serpentina
         linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat_g)
-
-        #Camada de linha de voo no QGIS (sem segmentos de conexão)
-        nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
-        layer_path = QgsVectorLayer('MultiLineString?crs=EPSG:4326', nome_path, 'memory')
-        prov_path = layer_path.dataProvider()
-        prov_path.addAttributes([QgsField('id', QVariant.Int)])
-        layer_path.updateFields()
-        multi_geom = QgsGeometry.collectGeometry([g for g in linhas_voo if g and not g.isEmpty()])
-        feat_path = QgsFeature()
-        feat_path.setGeometry(multi_geom)
-        feat_path.setAttributes([1])
-        prov_path.addFeatures([feat_path])
-        layer_path.updateExtents()
-        line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
-        seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
-        marcador = QgsMarkerLineSymbolLayer()
-        marcador.setInterval(30)
-        marcador.setSubSymbol(seta)
-        line_symbol.appendSymbolLayer(marcador)
-        layer_path.setRenderer(QgsSingleSymbolRenderer(line_symbol))
-        self.layer_path = layer_path
-
-        # Montar LISTA_PONTOS: apenas extremidades de cada linha 
-        # RC2: o drone voa a linha inteira com a câmera controlada pelo RC2 —
-        # apenas 2 waypoints por linha (início e fim) + ponto de conexão entre linhas
-        LISTA_PONTOS = []
-        direcao = 1
-
-        for geom_linha in linhas_voo:
-            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
-            if not pts:
-                continue
-
-            if direcao == 1:
-                ini = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
-                fim = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
-            else:
-                ini = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
-                fim = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
-
-            if LISTA_PONTOS:
-                LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], ini, altVoo))
-            LISTA_PONTOS.append(ini)
-            LISTA_PONTOS.append(fim)
-            direcao *= -1
-
-        # Garantir que o voo começa pelo lado de p1
-        if LISTA_PONTOS:
-            d_ini = (LISTA_PONTOS[0]['longitude']  - p1.x())**2 + (LISTA_PONTOS[0]['latitude']  - p1.y())**2
-            d_fim = (LISTA_PONTOS[-1]['longitude'] - p1.x())**2 + (LISTA_PONTOS[-1]['latitude'] - p1.y())**2
-            if d_fim < d_ini:
-                LISTA_PONTOS.reverse()
-
-        # Heading
+        LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, 0, altVoo, azimute, p1, modo='bordas')
         heading_para_proximo(LISTA_PONTOS, azimute)
+        self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
 
         feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
 
-        # =============L I T C H I==========================================================
+        # ============= L I T C H I   &   K M L ==========================================================
 
         feedback.pushInfo("")
 
-        if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("H_RC2", LISTA_PONTOS, arquivo_csv, 1, 0, 0, 360, altVoo, gimbalAng, terrain, 0)
-
-            feedback.pushInfo("✅ CSV file successfully generated.")
+        if arquivo_csv and arquivo_csv.endswith('.csv'):
+            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,
+                                           0, 360, altVoo, gimbalAng, terrain, 0)
+            feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        # ============= Criar KML do caminho (path) ===============================================        
-        base, ext = os.path.splitext(arquivo_csv)
-        caminho_kml = base + ".kml"
-        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
-
-        self.csv_path = arquivo_csv
-        self.kml_path = caminho_kml
+        self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
@@ -220,8 +166,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         feedback.pushInfo("✅ Horizontal RC2 Flight Plan successfully executed.")
         feedback.pushInfo("")
 
-        return {'csv': arquivo_csv,
-                'kml': caminho_kml}
+        return {'csv': arquivo_csv, 'kml': self.kml_path}
 
     def name(self):
         return 'Flight_Plan_H_RC2'
@@ -275,48 +220,9 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
     
     
     def postProcessAlgorithm(self, context, feedback):        
-        
-        # ================= Carregar KML no QGIS =================
-        layer_kml = None
-
-        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
-
-            if layer_kml.isValid():
-                QgsProject.instance().addMapLayer(layer_kml)
-                feedback.pushInfo("✅ KML layer added to QGIS.")
-            else:
-                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
-
-        
-        # ================= Carregar CSV no QGIS =================
-        layer_pontos = None
-
-        if hasattr(self, 'csv_path') and self.csv_path:
-            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
-
-            if layer_pontos is None or not layer_pontos.isValid():
-                feedback.reportError("❌ Could not load CSV as point layer.")
-            else:
-                QgsProject.instance().addMapLayer(layer_pontos)
-                feedback.pushInfo("✅ CSV point layer added to QGIS.")
-
-            try:
-                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
-                processing.run("lftools:magicstyles", params)
-            except:
-                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
-
-
-        # ================= Abrir KML no Google Earth =================
-        if hasattr(self, 'abrir_kml') and self.abrir_kml:
-            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
-                if ok:
-                    feedback.pushInfo("✅ KML opened with the default application.")
-                else:
-                    feedback.reportError("⚠️ Could not open the KML automatically.")
-            else:
-                feedback.reportError("⚠️ KML path not found.")
-
+        post_process_comum(context, feedback,
+                           layer_path=getattr(self, 'layer_path', None),
+                           csv_path=getattr(self, 'csv_path', None),
+                           kml_path=getattr(self, 'kml_path', None),
+                           abrir_kml=getattr(self, 'abrir_kml', False))
         return {}

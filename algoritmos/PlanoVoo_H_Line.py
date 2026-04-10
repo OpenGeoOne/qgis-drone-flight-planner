@@ -38,7 +38,11 @@ from .Funcs import (
     distancia,
     pontos_na_linha,
     heading_para_proximo,
-    pontos_conexao
+    pontos_conexao,
+    criar_layer_path,
+    montar_LISTA_PONTOS,
+    salvar_outputs,
+    post_process_comum
 )
 
 class PlanoVoo_H_Line(QgsProcessingAlgorithm):
@@ -290,48 +294,10 @@ The result is a <b>Litchi-compatible CSV</b> and optional flight line and waypoi
     
     
     def postProcessAlgorithm(self, context, feedback):        
-        
-        # ================= Carregar KML no QGIS =================
-        layer_kml = None
-
-        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
-
-            if layer_kml.isValid():
-                QgsProject.instance().addMapLayer(layer_kml)
-                feedback.pushInfo("✅ KML layer added to QGIS.")
-            else:
-                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
-
-        
-        # ================= Carregar CSV no QGIS =================
-        layer_pontos = None
-
-        if hasattr(self, 'csv_path') and self.csv_path:
-            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
-
-            if layer_pontos is None or not layer_pontos.isValid():
-                feedback.reportError("❌ Could not load CSV as point layer.")
-            else:
-                QgsProject.instance().addMapLayer(layer_pontos)
-                feedback.pushInfo("✅ CSV point layer added to QGIS.")
-
-            try:
-                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
-                processing.run("lftools:magicstyles", params)
-            except:
-                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
-
-
-        # ================= Abrir KML no Google Earth =================
-        if hasattr(self, 'abrir_kml') and self.abrir_kml:
-            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
-                if ok:
-                    feedback.pushInfo("✅ KML opened with the default application.")
-                else:
-                    feedback.reportError("⚠️ Could not open the KML automatically.")
-            else:
-                feedback.reportError("⚠️ KML path not found.")
-
+        post_process_comum(context, feedback,
+                       layer_path=self.layer_path,
+                       csv_path=self.csv_path,
+                       kml_path=self.kml_path,
+                       abrir_kml=self.abrir_kml)
         return {}
+        

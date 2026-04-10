@@ -34,7 +34,9 @@ from .Funcs import (
     azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer
+    csv_como_layer,
+    salvar_outputs,
+    post_process_comum
 )
 
 class PlanoVoo_VF(QgsProcessingAlgorithm):
@@ -226,24 +228,18 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
                 LISTA_PONTOS.append(novo_pnt)
             direcao *= -1
 
-        # ============= L I T C H I ==========================================================
+        # ============= L I T C H I   &   K M L ==========================================================
 
         feedback.pushInfo("")
 
-        if arquivo_csv and arquivo_csv.endswith('.csv'): # Verificar se o caminho CSV está preenchido
-            gerar_CSV("VF", LISTA_PONTOS, arquivo_csv, velocidade, tempo, deltaFront, 0, H, gimbalAng, terrain)
-
-            feedback.pushInfo("✅ CSV file successfully generated.")
+        if arquivo_csv and arquivo_csv.endswith('.csv'):
+            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "VF", velocidade, tempo,
+                                           deltaFront, 0, H, gimbalAng, terrain)
+            feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:
             feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
 
-        # ============= Criar KML do caminho (path) ===============================================        
-        base, ext = os.path.splitext(arquivo_csv)
-        caminho_kml = base + ".kml"
-        salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
-
-        self.csv_path = arquivo_csv
-        self.kml_path = caminho_kml
+        self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml
 
         # ============= Mensagem de Encerramento =====================================================
@@ -251,8 +247,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         feedback.pushInfo("✅ Facade Vertical Flight Plan successfully executed.")
         feedback.pushInfo("")
         
-        return {'csv': arquivo_csv,
-                'kml': caminho_kml}
+        return {'csv': arquivo_csv, 'kml': self.kml_path}
 
     def name(self):
         return 'Flight_Plan_VF'
@@ -313,48 +308,8 @@ It enables the planning of a precise vertical trajectory with appropriate overla
     
     
     def postProcessAlgorithm(self, context, feedback):        
-        
-        # ================= Carregar KML no QGIS =================
-        layer_kml = None
-
-        if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-            layer_kml = QgsVectorLayer(self.kml_path, 'path - ' + os.path.splitext(os.path.basename(self.kml_path))[0], "ogr")
-
-            if layer_kml.isValid():
-                QgsProject.instance().addMapLayer(layer_kml)
-                feedback.pushInfo("✅ KML layer added to QGIS.")
-            else:
-                feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
-
-        
-        # ================= Carregar CSV no QGIS =================
-        layer_pontos = None
-
-        if hasattr(self, 'csv_path') and self.csv_path:
-            layer_pontos = csv_como_layer(self.csv_path, layer_name=None)
-
-            if layer_pontos is None or not layer_pontos.isValid():
-                feedback.reportError("❌ Could not load CSV as point layer.")
-            else:
-                QgsProject.instance().addMapLayer(layer_pontos)
-                feedback.pushInfo("✅ CSV point layer added to QGIS.")
-
-            try:
-                params = { 'LAYER' : layer_pontos, 'STYLE_POINT' : 1 }
-                processing.run("lftools:magicstyles", params)
-            except:
-                feedback.reportError("💡Install or enable the LFTools plugin to view the drone's heading, showing the direction its camera is pointing.")
-
-
-        # ================= Abrir KML no Google Earth =================
-        if hasattr(self, 'abrir_kml') and self.abrir_kml:
-            if hasattr(self, 'kml_path') and self.kml_path and os.path.exists(self.kml_path):
-                ok = QDesktopServices.openUrl(QUrl.fromLocalFile(self.kml_path))
-                if ok:
-                    feedback.pushInfo("✅ KML opened with the default application.")
-                else:
-                    feedback.reportError("⚠️ Could not open the KML automatically.")
-            else:
-                feedback.reportError("⚠️ KML path not found.")
-
+        post_process_comum(context, feedback,
+                           csv_path=getattr(self, 'csv_path', None),
+                           kml_path=getattr(self, 'kml_path', None),
+                           abrir_kml=getattr(self, 'abrir_kml', False))
         return {}
