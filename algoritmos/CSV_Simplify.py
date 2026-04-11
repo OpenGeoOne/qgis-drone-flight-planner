@@ -22,12 +22,11 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from ..images.Imgs import *
-import processing
 import csv
 import os
 import tempfile
 import uuid
-from .Funcs import loadParametros, saveParametros, verificar_plugins, simbologiaPontos
+from .Funcs import loadParametros, saveParametros
 
 class CSV_Simplify(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -106,11 +105,6 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         if arquivo_csvOut:
             if not os.path.exists(os.path.dirname(arquivo_csvOut)):
                 raise QgsProcessingException("❌ Path to Simplified CSV file does not exist!")
-
-        # Verificar se o(s) plugin(s) instalado(s)
-        plugins_verificar = ["lftools"]
-        feedback = QgsProcessingFeedback()
-        verificar_plugins(plugins_verificar, feedback)
 
         # Grava Parâmetros
         saveParametros("H_Simplified",
@@ -218,9 +212,13 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
                     pontos_csv_layer.setName(f"{csv_name} - Original CSV")
                     QgsProject.instance().addMapLayer(pontos_csv_layer)
+
                     # Simbologia
-                    simbologiaPontos(pontos_csv_layer)
-                    feedback.pushInfo("✓ CSV point layer added to project")
+                    try:
+                        processing.run("lftools:magicstyles", {'LAYER': pontos_csv_layer, 'STYLE_POINT': 1})
+                        feedback.pushInfo("✓ CSV point layer added to project")
+                    except:
+                        feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
 
         except Exception as e:
             feedback.reportError(f"Error creating points: {str(e)}")
@@ -247,6 +245,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             return {}
 
         # ETAPA 3: Amostrar valores do raster com LFTools
+        import processing
         feedback.pushInfo("STEP 3: Sampling raster values ​​with LFTools...")
         try:
             pontos_layer = QgsVectorLayer(outputs['AdicionarIndice']['OUTPUT'], 'pontos', 'ogr')
@@ -392,32 +391,33 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         feedback.pushInfo("STEP 6: Calculating minimum distance between points...")
         try:
             pontos_reprojetados = QgsVectorLayer(temp_file_reprojetada, 'pontos_reprojetados', 'ogr')
-            
-            # Calcular distâncias entre pontos consecutivos
             features = list(pontos_reprojetados.getFeatures())
-            distancias = []
             
+            distancias = []
             for i in range(len(features) - 1):
                 geom1 = features[i].geometry()
                 geom2 = features[i + 1].geometry()
-                distancias.append(geom1.distance(geom2))
-            
-            # Calcular distância mínima
+                # Usar apenas coordenadas 2D (ignorar Z)
+                pt1 = geom1.asPoint()
+                pt2 = geom2.asPoint()
+                dist = ((pt1.x() - pt2.x())**2 + (pt1.y() - pt2.y())**2) ** 0.5
+                if dist > 0.01:  # ignorar pontos coincidentes ou muito próximos
+                    distancias.append(dist)
+
             if distancias:
                 distancia_minima = min(distancias)
                 raio_buffer = distancia_minima / 2
-                feedback.pushInfo(f"✓ Minimum calculated distance: {distancia_minima:.2f} metros")
-                feedback.pushInfo(f"✓ Buffer radius defined: {raio_buffer:.2f} metros")
+                feedback.pushInfo(f"✓ Minimum calculated distance: {distancia_minima:.2f} m")
+                feedback.pushInfo(f"✓ Buffer radius defined: {raio_buffer:.2f} m")
             else:
-                raio_buffer = 5  # Valor padrão se não for possível calcular
-                feedback.pushInfo("⚠ Unable to calculate minimum distance using default value")
+                raio_buffer = 5
+                feedback.pushInfo("⚠ Unable to calculate minimum distance, using default value")
         except Exception as e:
-            raio_buffer = 5  # Valor padrão em caso de erro
+            raio_buffer = 5
             feedback.pushInfo(f"⚠ Error calculating minimum distance: {str(e)}, using default value")
 
-        feedback.setCurrentStep(6)
-        if feedback.isCanceled():
-            return {}
+        #feedback.pushInfo(f"DEBUG: raio_buffer = {raio_buffer:.4f} m")
+        #feedback.pushInfo(f"DEBUG: total pontos reprojetados = {len(features)}")
 
         # ETAPA 7: Pontos para linhas
         feedback.pushInfo("STEP 7: Converting points to lines...")
@@ -446,12 +446,21 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             feedback.pushInfo("✓ Points successfully converted to lines")
             
             if parameters['adicionar_linha_trajetoria']:
-                # Carregar a camada de linha de trajetória do arquivo temporário
                 linha_trajetoria_layer = QgsVectorLayer(temp_file_linha, 'linha_trajetoria', 'ogr')
                 if linha_trajetoria_layer.isValid():
                     csv_path = self.parameterAsString(parameters, 'voo_em_csv', context)
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
                     linha_trajetoria_layer.setName(f"{csv_name} - Flight Line")
+
+                    # Simbologia igual aos outros voos
+                    line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
+                    seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
+                    marcador = QgsMarkerLineSymbolLayer()
+                    marcador.setInterval(30)
+                    marcador.setSubSymbol(seta)
+                    line_symbol.appendSymbolLayer(marcador)
+                    linha_trajetoria_layer.setRenderer(QgsSingleSymbolRenderer(line_symbol))
+
                     QgsProject.instance().addMapLayer(linha_trajetoria_layer)
                     feedback.pushInfo("✓ Trajectory line layer added to project")
                 else:
@@ -470,6 +479,9 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         feedback.setCurrentStep(7)
         if feedback.isCanceled():
             return {}
+
+        #linha_layer_debug = QgsVectorLayer(temp_file_linha, 'debug_linha', 'ogr')
+        #feedback.pushInfo(f"DEBUG: features na linha = {linha_layer_debug.featureCount()}")
 
         # ETAPA 8: Simplificar linha
         feedback.pushInfo("STEP 8: Simplifying line...")
@@ -512,6 +524,9 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
+        #simp_layer_debug = QgsVectorLayer(temp_file_simplificada, 'debug_simp', 'ogr')
+        #feedback.pushInfo(f"DEBUG: features na linha simplificada = {simp_layer_debug.featureCount()}")
+
         # ETAPA 9: Extrair vértices da linha simplificada
         feedback.pushInfo("STEP 9: Extracting vertices...")
         
@@ -550,6 +565,9 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         feedback.setCurrentStep(9)
         if feedback.isCanceled():
             return {}
+
+        #vert_layer_debug = QgsVectorLayer(temp_file_vertices, 'debug_vert', 'ogr')
+        #feedback.pushInfo(f"DEBUG: vértices extraídos = {vert_layer_debug.featureCount()}")
 
         # ETAPA 10: Criar buffers ao redor dos vértices simplificados
         feedback.pushInfo("STEP 10: Creating buffers around vertices...")
@@ -596,47 +614,10 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
-        # ETAPA 11: Reprojetar buffers para EPSG:4326
-        feedback.pushInfo("STEP 11: Redesigning buffers...")
-        
-        # Gerar nome de arquivo temporário único para os buffers reprojetados
-        temp_file_buffers_reprojetados = os.path.join(tempfile.gettempdir(), f'buffers_reprojetados_{uuid.uuid4().hex}.gpkg')
-        temp_files.append(temp_file_buffers_reprojetados)
-        
-        # Remover arquivo se já existir
-        if os.path.exists(temp_file_buffers_reprojetados):
-            os.remove(temp_file_buffers_reprojetados)
-            
-        alg_params = {
-            'INPUT': temp_file_buffers,
-            'TARGET_CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
-            'OUTPUT': temp_file_buffers_reprojetados
-        }
-        try:
-            outputs['ReprojetarBuffers'] = processing.run(
-                'native:reprojectlayer', 
-                alg_params, 
-                context=context, 
-                feedback=feedback, 
-                is_child_algorithm=True
-            )
-            feedback.pushInfo("✓ Buffers successfully redesigned")
-        except Exception as e:
-            feedback.reportError(f"Error redesigning buffers: {str(e)}")
-            # Limpar arquivos temporários em caso de erro
-            for temp_file in temp_files:
-                try:
-                    if os.path.exists(temp_file):
-                        os.remove(temp_file)
-                except:
-                    pass
-            return {}
-        
-        feedback.setCurrentStep(11)
-        if feedback.isCanceled():
-            return {}
+        #buf_layer_debug = QgsVectorLayer(temp_file_buffers, 'debug_buf', 'ogr')
+        #feedback.pushInfo(f"DEBUG: buffers criados = {buf_layer_debug.featureCount()}")
 
-        # ETAPA 12: Unir atributos por localização (pontos originais dentro dos buffers)
+        # ETAPA 11: Unir atributos por localização (pontos originais dentro dos buffers)
         feedback.pushInfo("STEP 12: Merging attributes by location...")
         
         # Gerar nome de arquivo temporário único para a união de atributos
@@ -649,9 +630,9 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             
         alg_params = {
             'DISCARD_NONMATCHING': True,
-            'INPUT': outputs['AdicionarIndice']['OUTPUT'],  # Pontos originais com índice
-            'JOIN': temp_file_buffers_reprojetados,  # Buffers reprojetados
-            'PREDICATE': [0],  # Intersect
+            'INPUT': temp_file_reprojetada,   # pontos em UTM
+            'JOIN': temp_file_buffers,        # buffers em UTM (etapa 10, antes de reprojetar)
+            'PREDICATE': [0],
             'OUTPUT': temp_file_atributos_unidos
         }
         try:
@@ -678,7 +659,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
-        # ETAPA 13: Extrair índices dos pontos simplificados
+        # ETAPA 12: Extrair índices dos pontos simplificados
         feedback.pushInfo("STEP 13: Extracting simplified indexes...")
         try:
             # Carregar a camada simplificada diretamente do arquivo temporário
@@ -708,11 +689,21 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             feedback.pushInfo(f"✓ Found {len(indices_simplificados)} simplified indices")
             
             if parameters['adicionar_pontos_simplificados']:
-                csv_path = self.parameterAsString(parameters, 'voo_em_csv', context)
-                csv_name = os.path.splitext(os.path.basename(csv_path))[0]
-                simplified_layer.setName(f"{csv_name} - Simplified CSV")
-                QgsProject.instance().addMapLayer(simplified_layer)
-                feedback.pushInfo("✓ Simplified points layer added to project")
+                csv_saida = self.parameterAsString(parameters, 'csv_saida', context)
+                csv_name = os.path.splitext(os.path.basename(csv_saida))[0]
+                uri = (
+                    f"file:///{csv_saida.replace(chr(92), '/')}"
+                    f"?type=csv&delimiter=,&detectTypes=yes"
+                    f"&xField=longitude&yField=latitude&geomType=point&crs=EPSG:4326"
+                )
+                simp_layer = QgsVectorLayer(uri, f"{csv_name} - Simplified CSV", "delimitedtext")
+                if simp_layer.isValid():
+                    QgsProject.instance().addMapLayer(simp_layer)
+                    try:
+                        processing.run("lftools:magicstyles", {'LAYER': simp_layer, 'STYLE_POINT': 1})
+                    except:
+                        pass
+                    feedback.pushInfo("✓ Simplified points layer added to project")
                     
         except Exception as e:
             feedback.reportError(f"Error extracting indexes: {str(e)}")
@@ -729,7 +720,10 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
-        # ETAPA 14: Filtrar CSV original com base nos índices
+        #join_layer_debug = QgsVectorLayer(temp_file_atributos_unidos, 'debug_join', 'ogr')
+        #feedback.pushInfo(f"DEBUG: features após join = {join_layer_debug.featureCount()}")
+
+        # ETAPA 13: Filtrar CSV original com base nos índices
         feedback.pushInfo("STEP 14: Filtering original CSV...")
         try:
             csv_path = self.parameterAsString(parameters, 'voo_em_csv', context)

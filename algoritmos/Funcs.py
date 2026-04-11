@@ -108,20 +108,6 @@ def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, 
                "photo_distinterval": f"{dist_interval:.2f}"}
             writer.writerow(data)
 
-def verificar_plugins(plugins_list, feedback=None):
-    # Obter a lista de todos os plugins instalados
-    installed_plugins = qgis.utils.plugins.keys()
-
-    plugins_not_installed = [plugin for plugin in plugins_list if plugin not in installed_plugins]
-
-    # Se houver plugins não instalados, levantar erro
-    if plugins_not_installed:
-       raise Exception(f"❌ The following plugins are not installed: {', '.join(plugins_not_installed)}")
-    else:
-       feedback.pushInfo(f"✅ All plugins are installed: {plugins_list}")
-
-    return
-
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
                    v=None, t=None, abGround=None, dl=None, df=None, dfop=None, raster=None, # esse raster=None só usado na rotina CSV_Simplifly
                    altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
@@ -783,32 +769,3 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
 
-def simbologiaPontos(layer): # só está sendo usada na rotina CSV_Simplify
-   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
-   renderer = QgsSingleSymbolRenderer(simbolo)
-   layer.setRenderer(renderer)
-
-   # Rótulos
-   settings = QgsPalLayerSettings()
-   settings.fieldName = "id"
-   settings.isExpression = True
-   settings.enabled = True
-
-   textoF = QgsTextFormat()
-   textoF.setFont(QFont("Arial", 10, QFont.Bold))
-   textoF.setSize(10)
-
-   bufferS = QgsTextBufferSettings()
-   bufferS.setEnabled(True)
-   bufferS.setSize(1)  # Tamanho do buffer em milímetros
-   bufferS.setColor(QColor("white"))  # Cor do buffer
-
-   textoF.setBuffer(bufferS)
-   settings.setFormat(textoF)
-
-   layer.setLabelsEnabled(True)
-   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-
-   layer.triggerRepaint()
-
-   return
