@@ -20,11 +20,11 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from ..images.Imgs import *
 import csv
 import os
-from .Funcs import loadParametros, saveParametros
+from .Funcs import loadParametros, saveParametros, csv_como_layer, criar_layer_path
 
 class CSV_Merge(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -62,10 +62,15 @@ class CSV_Merge(QgsProcessingAlgorithm):
         arquivo_csvS = self.parameterAsFile(parameters, 'csvS', context)
 
         # Verificações
-        if arquivo_csvS:
-            if not os.path.exists(os.path.dirname(arquivo_csvS)):
-                raise QgsProcessingException("❌ Path to Generated CSV file does not exist!")
-
+        if not arquivo_csv1 or not os.path.exists(arquivo_csv1):
+            raise QgsProcessingException("❌ First CSV file not found!")
+        
+        if not arquivo_csv2 or not os.path.exists(arquivo_csv2):
+            raise QgsProcessingException("❌ Second CSV file not found!")
+        
+        if arquivo_csvS and not os.path.exists(os.path.dirname(arquivo_csvS)):
+            raise QgsProcessingException("❌ Path to output CSV does not exist!")
+        
         # Grava Parâmetros
         saveParametros("H_Merge",
                         csvI=arquivo_csv1,
@@ -76,50 +81,114 @@ class CSV_Merge(QgsProcessingAlgorithm):
                                 
         # =========================================================================
         # Processo: juntar os dois CSV em um terceiro
-        # ========================================================================
-        # Abrir os dois arquivos de entrada
         with open(arquivo_csv1, 'r', encoding='utf-8') as f1, \
-                open(arquivo_csv2, 'r', encoding='utf-8') as f2:
+             open(arquivo_csv2, 'r', encoding='utf-8') as f2:
 
             reader1 = csv.reader(f1)
             reader2 = csv.reader(f2)
 
-            # Ler cabeçalhos
             header1 = next(reader1)
             header2 = next(reader2)
 
-            # Definir cabeçalho de saída (pode ser união ou apenas de um dos arquivos)
             header_out = header1 if header1 == header2 else header1 + [h for h in header2 if h not in header1]
 
-            # Abrir arquivo de saída
             with open(arquivo_csvS, 'w', newline='', encoding='utf-8') as fout:
                 writer = csv.writer(fout)
                 writer.writerow(header_out)
+                rows1 = list(reader1)
+                rows2 = list(reader2)
 
                 # Escrever linhas do primeiro CSV
-                for row in reader1:
+                for row in rows1:
                     writer.writerow(row)
+
+                # Ponto de conexão entre os dois voos
+                # Usa o último ponto do voo 1 e o primeiro do voo 2
+                # e interpola um waypoint intermediário
+                if rows1 and rows2:
+                    try:
+                        idx_lon = header_out.index('longitude')
+                        idx_lat = header_out.index('latitude')
+                        idx_alt = header_out.index('altitude(m)')
+
+                        last = rows1[-1]
+                        first = rows2[0]
+
+                        lon_mid = (float(last[idx_lon]) + float(first[idx_lon])) / 2
+                        lat_mid = (float(last[idx_lat]) + float(first[idx_lat])) / 2
+                        alt_mid = max(float(last[idx_alt]), float(first[idx_alt]))
+
+        # =========================================================================
+        # Criar ponto de conexão baseado no último ponto do voo 1
+                        import math
+                        idx_heading = header_out.index('heading(deg)') if 'heading(deg)' in header_out else None
+
+                        # Calcular heading do ponto médio para o primeiro ponto do voo 2
+                        dx = float(first[idx_lon]) - lon_mid
+                        dy = float(first[idx_lat]) - lat_mid
+                        heading_mid = int((math.degrees(math.atan2(dx, dy)) + 360) % 360)
+
+                        row_mid = list(last)
+                        row_mid[idx_lon] = f"{lon_mid:.8f}"
+                        row_mid[idx_lat] = f"{lat_mid:.8f}"
+                        row_mid[idx_alt] = f"{alt_mid:.1f}"
+                        if idx_heading is not None:
+                            row_mid[idx_heading] = str(heading_mid)
+                        writer.writerow(row_mid)
+                    except Exception as e:
+                        feedback.reportError(f"⚠️ Could not create connection waypoint: {str(e)}")
 
                 # Escrever linhas do segundo CSV
-                for row in reader2:
+                for row in rows2:
                     writer.writerow(row)
 
+        n_total = len(rows1) + len(rows2)
+        feedback.pushInfo(f"✅ Merged {len(rows1)} + {len(rows2)} = {n_total} waypoints")
+
+        # =========================================================================
+        # Camadas no QGIS
+        import processing
+
+        csv_name = os.path.splitext(os.path.basename(arquivo_csvS))[0]
+
+        # Camada de pontos
         if parameters['ver_Points_merge']:
-            csv_path = self.parameterAsString(parameters, 'csvS', context)
-            csv_name = os.path.splitext(os.path.basename(csv_path))[0]
-
-            # Criar camada a partir do CSV
-            uri = f"file:///{csv_path}?delimiter=,&xField=longitude&yField=latitude&crs=EPSG:4326"
-            merged_layer = QgsVectorLayer(uri, f"Merged Points - {csv_name}", "delimitedtext")
-
-            if not merged_layer.isValid():
-                feedback.reportError("❌ Não foi possível carregar o CSV como camada de pontos.")
+            layer_pontos = csv_como_layer(arquivo_csvS, layer_name=None)
+            if layer_pontos is None or not layer_pontos.isValid():
+                feedback.reportError("❌ Could not load merged CSV as point layer.")
             else:
-                QgsProject.instance().addMapLayer(merged_layer)
-                feedback.pushInfo("✓ Merged points layer added to project")
+                QgsProject.instance().addMapLayer(layer_pontos)
+                feedback.pushInfo("✅ Merged points layer added to QGIS.")
+                try:
+                    processing.run("lftools:magicstyles", {'LAYER': layer_pontos, 'STYLE_POINT': 1})
+                except:
+                    feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
+
+        # Linha de voo — construir LISTA_PONTOS a partir do CSV merged
+        try:
+            LISTA_PONTOS = []
+            with open(arquivo_csvS, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        LISTA_PONTOS.append({
+                            'longitude': float(row['longitude']),
+                            'latitude':  float(row['latitude']),
+                            'height':    float(row['altitude(m)']),
+                            'bowangle':  0
+                        })
+                    except:
+                        continue
+
+            layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csvS)
+            layer_path.setName(f"path - {csv_name}")
+            QgsProject.instance().addMapLayer(layer_path)
+            feedback.pushInfo("✅ Flight path layer added to QGIS.")
+        except Exception as e:
+            feedback.reportError(f"⚠️ Could not create flight path layer: {str(e)}")
 
         feedback.pushInfo("")
-        feedback.pushInfo("✅ CSV executed successfully.")
+        feedback.pushInfo("✅ CSV Merge executed successfully.")
         feedback.pushInfo("")
 
         return {}
