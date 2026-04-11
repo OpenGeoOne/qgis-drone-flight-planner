@@ -173,7 +173,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         # ============= L I T C H I   &   K M L ==========================================================
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             if deltaFrontOpc == 0:  # por distância → mesmo que Sensor
-                self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
+                self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "HM", velocidade, tempo,
                                            deltaFront, 0, altVoo, gimbalAng, terrain, None)
             else:                   # por tempo → mesmo que RC2
                 self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,

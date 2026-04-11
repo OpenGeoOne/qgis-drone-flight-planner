@@ -31,7 +31,7 @@ from .Funcs import (
     saveParametros,
     linhas_voo_poligono,
     heading_para_proximo,
-    pontos_conexao,
+    montar_LISTA_PONTOS,
     salvar_outputs,
     criar_layer_path,
     post_process_comum
@@ -137,33 +137,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         # Montar LISTA_PONTOS: apenas extremidades de cada linha
         # RC2: o drone voa a linha inteira com a câmera controlada pelo RC2 —
         # apenas 2 waypoints por linha (início e fim) + ponto de conexão entre linhas
-        LISTA_PONTOS = []
-        direcao = 1
-
-        for geom_linha in linhas_voo:
-            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
-            if not pts:
-                continue
-
-            if direcao == 1:
-                ini = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
-                fim = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
-            else:
-                ini = {'longitude': float(pts[-1].x()), 'latitude': float(pts[-1].y()), 'height': altVoo, 'bowangle': 0}
-                fim = {'longitude': float(pts[0].x()),  'latitude': float(pts[0].y()),  'height': altVoo, 'bowangle': 0}
-
-            if LISTA_PONTOS:
-                LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], ini, altVoo))
-            LISTA_PONTOS.append(ini)
-            LISTA_PONTOS.append(fim)
-            direcao *= -1
-
-        # Garantir que o voo começa pelo lado de p1
-        if LISTA_PONTOS:
-            d_ini = (LISTA_PONTOS[0]['longitude']  - p1.x())**2 + (LISTA_PONTOS[0]['latitude']  - p1.y())**2
-            d_fim = (LISTA_PONTOS[-1]['longitude'] - p1.x())**2 + (LISTA_PONTOS[-1]['latitude'] - p1.y())**2
-            if d_fim < d_ini:
-                LISTA_PONTOS.reverse()
+        LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, 0, altVoo, azimute, p1, modo='bordas')
 
         # Heading
         heading_para_proximo(LISTA_PONTOS, azimute)

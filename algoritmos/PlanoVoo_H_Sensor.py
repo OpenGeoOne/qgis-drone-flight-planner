@@ -200,7 +200,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
 
         # ============= L I T C H I   &   K M L ==========================================================
         if arquivo_csv and arquivo_csv.endswith('.csv'):
-            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
+            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "S", velocidade, tempo,
                                                deltaFront, 0, altVoo, gimbalAng, terrain, None)
             
             feedback.pushInfo("✅ CSV and KML files successfully generated.")

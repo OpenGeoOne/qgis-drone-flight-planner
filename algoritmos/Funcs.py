@@ -20,98 +20,16 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import *
 import os
-from qgis.PyQt.QtGui import QColor, QFont
 from qgis.PyQt.QtCore import QVariant
-import qgis.utils
 import numpy as np
 import csv
 
-def gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None, deltaFront_op=None):
-   # Criar o arquivo CSV do Litchi
-   with open(arquivo_csv, mode='w', newline='') as csvfile:
-         # Definir os cabeçalhos do arquivo CSV
-         fieldnames = [
-               "latitude", "longitude", "altitude(m)",
-               "heading(deg)", "curvesize(m)", "rotationdir",
-               "gimbalmode", "gimbalpitchangle",
-               "actiontype1", "actionparam1", "actiontype2", "actionparam2",
-               "actiontype3", "actionparam3", "actiontype4", "actionparam4",
-               "actiontype5", "actionparam5", "actiontype6", "actionparam6",
-               "actiontype7", "actionparam7", "actiontype8", "actionparam8",
-               "actiontype9", "actionparam9", "actiontype10", "actionparam10",
-               "actiontype11", "actionparam11", "actiontype12", "actionparam12",
-               "actiontype13", "actionparam13", "actiontype14", "actionparam14",
-               "actiontype15", "actionparam15", "altitudemode", "speed(m/s)",
-               "poi_latitude", "poi_longitude", "poi_altitude(m)", "poi_altitudemode",
-               "photo_timeinterval", "photo_distinterval"]
-
-         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-         writer.writeheader()
-
-         alturavoo    = H
-         angulo_gimbal = gimbalAng
-         above_ground = 1 if terrain else 0
-         mode_gimbal  = 2 if flight_type in ("H", "S", "L") else 0
-
-         if flight_type == "H_RC2":
-            t1, t2, t3, t4        = -1, 0, -1, 0
-            time_interval         = -1
-            dist_interval         = -1
-         else:
-            t1, t2, t3, t4        = (1, 0, -1, 0) if tempo == 0 else (0, tempo * 1000, 1, 0)
-            time_interval         = delta if deltaFront_op == 1 else -1
-            dist_interval         = -1    if deltaFront_op == 1 else delta
-         
-         for ponto in pontos_fotos:
-            longitude = ponto['longitude']
-            latitude = ponto['latitude']
-
-            if flight_type == "VF" or flight_type == "VC":
-               alturavoo = ponto['height']
-               angulo = ponto['bowangle']
-            elif flight_type in ("L", "H_RC2"):
-               angulo = ponto['bowangle']
-
-            data = {
-               "latitude": f"{latitude:.8f}",
-               "longitude": f"{longitude:.8f}",
-               "altitude(m)": f"{alturavoo:.1f}",
-               "heading(deg)": f"{angulo:.0f}",
-               "curvesize(m)": 0,
-               "rotationdir": 0,
-               "gimbalmode": mode_gimbal,
-               "gimbalpitchangle": angulo_gimbal,
-               "actiontype1": t1,
-               "actionparam1": t2,
-               "actiontype2": t3,
-               "actionparam2": t4,
-               "actiontype3": -1, "actionparam3": 0,
-               "actiontype4": -1, "actionparam4": 0,
-               "actiontype5": -1, "actionparam5": 0,
-               "actiontype6": -1, "actionparam6": 0,
-               "actiontype7": -1, "actionparam7": 0,
-               "actiontype8": -1, "actionparam8": 0,
-               "actiontype9": -1, "actionparam9": 0,
-               "actiontype10": -1, "actionparam10": 0,
-               "actiontype11": -1, "actionparam11": 0,
-               "actiontype12": -1, "actionparam12": 0,
-               "actiontype13": -1, "actionparam13": 0,
-               "actiontype14": -1, "actionparam14": 0,
-               "actiontype15": -1, "actionparam15": 0,
-               "altitudemode": above_ground,
-               "speed(m/s)": velocidade,
-               "poi_latitude": 0,
-               "poi_longitude": 0,
-               "poi_altitude(m)": 0,
-               "poi_altitudemode": 0,
-               "photo_timeinterval": time_interval,
-               "photo_distinterval": f"{dist_interval:.2f}"}
-            writer.writerow(data)
-
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
-                   v=None, t=None, abGround=None, dl=None, df=None, dfop=None, raster=None, # esse raster=None só usado na rotina CSV_Simplifly
+                   v=None, t=None, abGround=None, dl=None, df=None, dfop=None, raster=None,
                    altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
+    # esse raster=None só usado na rotina CSV_Simplifly
+    
     s = QgsSettings()
     prefixo = "qgis-drone-flight-planner/"
 
@@ -288,7 +206,8 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "addPointsMerge", False)
         )
 
-def meters2degrees(dist, lat, SRC): # Transformar distancia em metros para graus
+def meters2degrees(dist, lat, SRC):
+    # Transformar distancia em metros para graus
     ellipsoid_id = SRC.ellipsoidAcronym()
     ellipsoid = QgsEllipsoidUtils.ellipsoidParameters(ellipsoid_id)
     a = ellipsoid.semiMajor
@@ -302,7 +221,8 @@ def meters2degrees(dist, lat, SRC): # Transformar distancia em metros para graus
 
     return np.degrees(theta)
 
-def azimute(A, B): # Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
+def azimute(A, B):
+    # Cálculo dos azimutes entre dois pontos (vetor AB: origem A, extremidade B)
     dx = B.x() - A.x()
     dy = B.y() - A.y()
 
@@ -532,75 +452,6 @@ def heading_para_proximo(LISTA_PONTOS, azimute_func):
     if LISTA_PONTOS:
         LISTA_PONTOS[-1]['bowangle'] = ultimo_az
 
-def salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
-    coords_linha = " ".join(
-        f"{p['longitude']},{p['latitude']},{p['height']}"
-        for p in LISTA_PONTOS
-    )
-
-    placemarks = []
-    for i, p in enumerate(LISTA_PONTOS, start=1):
-        placemarks.append(f"""
-        <Placemark id="waypoints.{i}">
-            <Point>
-                <altitudeMode>relativeToGround</altitudeMode>
-                <coordinates>{p['longitude']},{p['latitude']},{p['height']}</coordinates>
-            </Point>
-        </Placemark>""")
-
-    kml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-    <Document id="root_doc">
-        <name>{nome_doc}</name>
-        <Style id="default">
-            <LineStyle>
-                <color>ff0000ff</color>
-                <width>2</width>
-            </LineStyle>
-        </Style>
-        <StyleMap id="default0">
-            <Pair>
-                <key>normal</key>
-                <styleUrl>#default</styleUrl>
-            </Pair>
-            <Pair>
-                <key>highlight</key>
-                <styleUrl>#hl</styleUrl>
-            </Pair>
-        </StyleMap>
-        <Style id="hl">
-            <IconStyle>
-                <scale>1.2</scale>
-            </IconStyle>
-            <LineStyle>
-                <color>ff0000ff</color>
-                <width>2</width>
-            </LineStyle>
-        </Style>
-        <Folder>
-            <name>path</name>
-            <Placemark id="path.1">
-                <styleUrl>#default0</styleUrl>
-                <LineString>
-                    <altitudeMode>relativeToGround</altitudeMode>
-                    <coordinates>
-                        {coords_linha}
-                    </coordinates>
-                </LineString>
-            </Placemark>
-        </Folder>
-
-        <Folder>
-            <name>waypoints</name>
-            {''.join(placemarks)}
-        </Folder>
-    </Document>
-</kml>
-"""
-
-    with open(caminho_saida, "w", encoding="utf-8") as f:
-        f.write(kml)
-
 def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
     """
     Carrega um CSV exportado pelo plugin como camada de pontos no QGIS.
@@ -731,12 +582,12 @@ def salvar_outputs(LISTA_PONTOS, arquivo_csv, flight_type, velocidade, tempo,
                    delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op=None):
     """Gera CSV e KML. Retorna caminho do KML."""
     if arquivo_csv and arquivo_csv.endswith('.csv'):
-        gerar_CSV(flight_type, LISTA_PONTOS, arquivo_csv, velocidade, tempo,
+        _gerar_CSV(flight_type, LISTA_PONTOS, arquivo_csv, velocidade, tempo,
                   delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op)
 
     base, _ = os.path.splitext(arquivo_csv)
     caminho_kml = base + ".kml"
-    salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
+    _salvar_kml(caminho_kml, LISTA_PONTOS, nome_doc="flight_plan.kml")
 
     return caminho_kml
 
@@ -769,3 +620,153 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
 
+def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None, deltaFront_op=None):
+   # Criar o arquivo CSV do Litchi
+   with open(arquivo_csv, mode='w', newline='') as csvfile:
+         # Definir os cabeçalhos do arquivo CSV
+         fieldnames = [
+               "latitude", "longitude", "altitude(m)",
+               "heading(deg)", "curvesize(m)", "rotationdir",
+               "gimbalmode", "gimbalpitchangle",
+               "actiontype1", "actionparam1", "actiontype2", "actionparam2",
+               "actiontype3", "actionparam3", "actiontype4", "actionparam4",
+               "actiontype5", "actionparam5", "actiontype6", "actionparam6",
+               "actiontype7", "actionparam7", "actiontype8", "actionparam8",
+               "actiontype9", "actionparam9", "actiontype10", "actionparam10",
+               "actiontype11", "actionparam11", "actiontype12", "actionparam12",
+               "actiontype13", "actionparam13", "actiontype14", "actionparam14",
+               "actiontype15", "actionparam15", "altitudemode", "speed(m/s)",
+               "poi_latitude", "poi_longitude", "poi_altitude(m)", "poi_altitudemode",
+               "photo_timeinterval", "photo_distinterval"]
+
+         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+         writer.writeheader()
+
+         alturavoo    = H
+         angulo_gimbal = gimbalAng
+         above_ground = 1 if terrain else 0
+         mode_gimbal  = 2 if flight_type in ("S", "HM", "H_RC2", "L") else 0 # somente os Voos Verticais são Manual; voos Horizontais são Custom
+
+         if flight_type == "H_RC2":
+            t1, t2, t3, t4        = -1, 0, -1, 0
+            time_interval         = -1
+            dist_interval         = -1
+         else:
+            t1, t2, t3, t4        = (1, 0, -1, 0) if tempo == 0 else (0, tempo * 1000, 1, 0)
+            time_interval         = delta if deltaFront_op == 1 else -1
+            dist_interval         = -1    if deltaFront_op == 1 else delta
+         
+         for ponto in pontos_fotos:
+            longitude = ponto['longitude']
+            latitude = ponto['latitude']
+
+            if flight_type == "VF" or flight_type == "VC":
+               alturavoo = ponto['height']
+               angulo = ponto['bowangle']
+            elif flight_type in ("L", "H_RC2"):
+               angulo = ponto['bowangle']
+
+            data = {
+               "latitude": f"{latitude:.8f}",
+               "longitude": f"{longitude:.8f}",
+               "altitude(m)": f"{alturavoo:.1f}",
+               "heading(deg)": f"{angulo:.0f}",
+               "curvesize(m)": 0,
+               "rotationdir": 0,
+               "gimbalmode": mode_gimbal,
+               "gimbalpitchangle": angulo_gimbal,
+               "actiontype1": t1,
+               "actionparam1": t2,
+               "actiontype2": t3,
+               "actionparam2": t4,
+               "actiontype3": -1, "actionparam3": 0,
+               "actiontype4": -1, "actionparam4": 0,
+               "actiontype5": -1, "actionparam5": 0,
+               "actiontype6": -1, "actionparam6": 0,
+               "actiontype7": -1, "actionparam7": 0,
+               "actiontype8": -1, "actionparam8": 0,
+               "actiontype9": -1, "actionparam9": 0,
+               "actiontype10": -1, "actionparam10": 0,
+               "actiontype11": -1, "actionparam11": 0,
+               "actiontype12": -1, "actionparam12": 0,
+               "actiontype13": -1, "actionparam13": 0,
+               "actiontype14": -1, "actionparam14": 0,
+               "actiontype15": -1, "actionparam15": 0,
+               "altitudemode": above_ground,
+               "speed(m/s)": velocidade,
+               "poi_latitude": 0,
+               "poi_longitude": 0,
+               "poi_altitude(m)": 0,
+               "poi_altitudemode": 0,
+               "photo_timeinterval": time_interval,
+               "photo_distinterval": f"{dist_interval:.2f}"}
+            writer.writerow(data)
+
+def _salvar_kml(caminho_saida, LISTA_PONTOS, nome_doc="flight_plan.kml"):
+    coords_linha = " ".join(
+        f"{p['longitude']},{p['latitude']},{p['height']}"
+        for p in LISTA_PONTOS
+    )
+
+    placemarks = []
+    for i, p in enumerate(LISTA_PONTOS, start=1):
+        placemarks.append(f"""
+        <Placemark id="waypoints.{i}">
+            <Point>
+                <altitudeMode>relativeToGround</altitudeMode>
+                <coordinates>{p['longitude']},{p['latitude']},{p['height']}</coordinates>
+            </Point>
+        </Placemark>""")
+
+    kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document id="root_doc">
+        <name>{nome_doc}</name>
+        <Style id="default">
+            <LineStyle>
+                <color>ff0000ff</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <StyleMap id="default0">
+            <Pair>
+                <key>normal</key>
+                <styleUrl>#default</styleUrl>
+            </Pair>
+            <Pair>
+                <key>highlight</key>
+                <styleUrl>#hl</styleUrl>
+            </Pair>
+        </StyleMap>
+        <Style id="hl">
+            <IconStyle>
+                <scale>1.2</scale>
+            </IconStyle>
+            <LineStyle>
+                <color>ff0000ff</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <Folder>
+            <name>path</name>
+            <Placemark id="path.1">
+                <styleUrl>#default0</styleUrl>
+                <LineString>
+                    <altitudeMode>relativeToGround</altitudeMode>
+                    <coordinates>
+                        {coords_linha}
+                    </coordinates>
+                </LineString>
+            </Placemark>
+        </Folder>
+
+        <Folder>
+            <name>waypoints</name>
+            {''.join(placemarks)}
+        </Folder>
+    </Document>
+</kml>
+"""
+
+    with open(caminho_saida, "w", encoding="utf-8") as f:
+        f.write(kml)
