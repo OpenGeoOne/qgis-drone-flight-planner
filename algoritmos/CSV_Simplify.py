@@ -26,7 +26,7 @@ import csv
 import os
 import tempfile
 import uuid
-from .Funcs import loadParametros, saveParametros
+from .Funcs import loadParametros, saveParametros, csv_como_layer
 
 class CSV_Simplify(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
@@ -696,8 +696,8 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     f"?type=csv&delimiter=,&detectTypes=yes"
                     f"&xField=longitude&yField=latitude&geomType=point&crs=EPSG:4326"
                 )
-                simp_layer = QgsVectorLayer(uri, f"{csv_name} - Simplified CSV", "delimitedtext")
-                if simp_layer.isValid():
+                simp_layer = csv_como_layer(csv_saida, layer_name=f"{csv_name} - Simplified CSV")
+                if simp_layer and simp_layer.isValid():
                     QgsProject.instance().addMapLayer(simp_layer)
                     try:
                         processing.run("lftools:magicstyles", {'LAYER': simp_layer, 'STYLE_POINT': 1})

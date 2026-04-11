@@ -23,8 +23,6 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
-import math
-import numpy as np
 
 from .Funcs import (
     meters2degrees,
@@ -281,9 +279,9 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
     
 
     def postProcessAlgorithm(self, context, feedback):        
-       post_process_comum(context, feedback,
+        post_process_comum(context, feedback,
                            layer_path=getattr(self, 'layer_path', None),
                            csv_path=getattr(self, 'csv_path', None),
                            kml_path=getattr(self, 'kml_path', None),
                            abrir_kml=getattr(self, 'abrir_kml', False))
-       return {}
+        return {}

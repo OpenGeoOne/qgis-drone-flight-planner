@@ -20,7 +20,7 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import csv
 import os

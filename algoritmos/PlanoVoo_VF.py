@@ -23,7 +23,6 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
-import math
 import numpy as np
 
 from .Funcs import (

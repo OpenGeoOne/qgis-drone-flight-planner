@@ -19,22 +19,16 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtCore import QCoreApplication, QUrl
-import processing
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QCoreApplication
 from ..images.Imgs import *
 import os
 import math
 import numpy as np
 
 from .Funcs import (
-    gerar_CSV,
-    meters2degrees,
-    salvar_kml,
-    azimute,
     loadParametros,
     saveParametros,
-    csv_como_layer,
     salvar_outputs,
     post_process_comum
 )
