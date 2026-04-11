@@ -21,10 +21,10 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
-from .Funcs import loadParametros, saveParametros
 from ..images.Imgs import *
 import csv
 import os
+from .Funcs import loadParametros, saveParametros
 
 class CSV_Merge(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):

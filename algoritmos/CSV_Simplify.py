@@ -27,11 +27,11 @@ import csv
 import os
 import tempfile
 import uuid
-from .Funcs import loadParametros, saveParametros
+from .Funcs import loadParametros, saveParametros, verificar_plugins, simbologiaPontos
 
 class CSV_Simplify(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        csvInSimplified, csvOutSimplified, toleranceSimplified, addPCsvSimplified, addPSimplified, addLSimplified = loadParametros("H_Simplified")
+        csvInSimplified, csvOutSimplified, rasterSimplified, toleranceSimplified, addPCsvSimplified, addPSimplified, addLSimplified = loadParametros("H_Simplified")
        
         self.addParameter(QgsProcessingParameterFile(
             'voo_em_csv', 
@@ -110,12 +110,13 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         # Verificar se o(s) plugin(s) instalado(s)
         plugins_verificar = ["lftools"]
         feedback = QgsProcessingFeedback()
-        # verificar_plugins(plugins_verificar, feedback)
+        verificar_plugins(plugins_verificar, feedback)
 
         # Grava Parâmetros
         saveParametros("H_Simplified",
                         csvI=arquivo_csvIn,
                         csv=arquivo_csvOut,
+                        raster=arquivo_DEM,
                         crs=parameters['src_projetado'],
                         tol=parameters['tolerancia'],
                         add1=parameters['adicionar_pontos_csv'],
@@ -217,7 +218,8 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     csv_name = os.path.splitext(os.path.basename(csv_path))[0]
                     pontos_csv_layer.setName(f"{csv_name} - Original CSV")
                     QgsProject.instance().addMapLayer(pontos_csv_layer)
-                    
+                    # Simbologia
+                    simbologiaPontos(pontos_csv_layer)
                     feedback.pushInfo("✓ CSV point layer added to project")
 
         except Exception as e:

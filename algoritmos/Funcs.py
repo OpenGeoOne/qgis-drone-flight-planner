@@ -123,7 +123,7 @@ def verificar_plugins(plugins_list, feedback=None):
     return
 
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
-                   v=None, t=None, abGround=None, dl=None, df=None, dfop=None,
+                   v=None, t=None, abGround=None, dl=None, df=None, dfop=None, raster=None, # esse raster=None só usado na rotina CSV_Simplifly
                    altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
     s = QgsSettings()
@@ -193,6 +193,7 @@ def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, c
     elif tipoVoo == "H_Simplified":
         s.setValue(prefixo + "csvInSimplified", csvI)
         s.setValue(prefixo + "csvOutSimplified", csv)
+        s.setValue(prefixo + "rasterSimplified", raster)
         s.setValue(prefixo + "CRSSimplified", crs)
         s.setValue(prefixo + "toleranceSimplified", tol)
         s.setValue(prefixo + "addPCsvSimplified", add1)
@@ -286,6 +287,7 @@ def loadParametros(tipoVoo):
         return (
             s.value(prefixo + "csvInSimplified", ""),
             s.value(prefixo + "csvOutSimplified", ""),
+            s.value(prefixo + "rasterSimplified", ""),
             s.value(prefixo + "toleranceSimplified", 15.0),
             s.value(prefixo + "addPCsvSimplified", False),
             s.value(prefixo + "addPSimplified", False),
@@ -781,3 +783,32 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
 
+def simbologiaPontos(layer): # só está sendo usada na rotina CSV_Simplify
+   simbolo = QgsMarkerSymbol.createSimple({'color': 'blue', 'size': '3'})
+   renderer = QgsSingleSymbolRenderer(simbolo)
+   layer.setRenderer(renderer)
+
+   # Rótulos
+   settings = QgsPalLayerSettings()
+   settings.fieldName = "id"
+   settings.isExpression = True
+   settings.enabled = True
+
+   textoF = QgsTextFormat()
+   textoF.setFont(QFont("Arial", 10, QFont.Bold))
+   textoF.setSize(10)
+
+   bufferS = QgsTextBufferSettings()
+   bufferS.setEnabled(True)
+   bufferS.setSize(1)  # Tamanho do buffer em milímetros
+   bufferS.setColor(QColor("white"))  # Cor do buffer
+
+   textoF.setBuffer(bufferS)
+   settings.setFormat(textoF)
+
+   layer.setLabelsEnabled(True)
+   layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+
+   layer.triggerRepaint()
+
+   return
