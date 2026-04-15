@@ -29,11 +29,7 @@ from .Funcs import (
     azimute,
     loadParametros,
     saveParametros,
-    linhas_voo_poligono,
-    heading_para_proximo,
-    criar_layer_path,
-    montar_LISTA_PONTOS,
-    salvar_outputs,
+    processar_voo_horizontal,
     post_process_comum
 )
 
@@ -136,7 +132,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
                         dl=parameters['percL'],
                         df=parameters['percF'])
 
-        # ===============================================================================
+        # =========================================================================================================
         # Reprojetar para WGS 84
         crs = area_layer.sourceCrs()
         crs_wgs = QgsCoordinateReferenceSystem('EPSG:4326')
@@ -168,13 +164,13 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         h1_F = SD_front / (2 * tg_F)
         deltaFront = SD_front * (alt_g / h1_F - 1)
 
+        # Sobreposições Calculadas
+        feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Spacing: {deltaFront:.2f} m")
+
         # deltaFront em metros para o CSV
-        deltaLat_m = deltaLat / meters2degrees(1, latitude_ref, crs)
         deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
 
-        feedback.pushInfo(f"✅ Lateral spacing: {deltaLat_m:.2f} m  Frontal spacing: {deltaFront_m:.2f} m")
-
-        # Extrair coordenadas da linha base e do polígono
+        # Extrair coordenadas
         if linha_geom.isMultipart():
             linha_pts = linha_geom.asMultiPolyline()[0]
         else:
@@ -187,25 +183,12 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
 
         p1 = QgsPointXY(linha_pts[0])
 
-        # ===== Linhas de voo ============================================================================
-        linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat)
-
-        # ===== LISTA_PONTOS =============================================================================
-        LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, deltaFront, altVoo, azimute, p1, modo='distancia')
-        
-        heading_para_proximo(LISTA_PONTOS, azimute)
-        self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
-
-        feedback.pushInfo(f"\u2705 {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
-
-        # ============= L I T C H I   &   K M L ==========================================================
-        if arquivo_csv and arquivo_csv.endswith('.csv'):
-            self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "S", velocidade, tempo,
-                                               deltaFront, 0, altVoo, gimbalAng, terrain, None)
-            
-            feedback.pushInfo("✅ CSV and KML files successfully generated.")
-        else:
-            feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
+        # Voo horizontal
+        _, self.layer_path, self.kml_path = processar_voo_horizontal(
+            linha_geom, poligono_geom, pol_pts, p1,
+            deltaLat, deltaFront, deltaFront_m,
+            altVoo, azimute, arquivo_csv,
+            velocidade, tempo, gimbalAng, terrain, "HS", feedback)
 
         self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml

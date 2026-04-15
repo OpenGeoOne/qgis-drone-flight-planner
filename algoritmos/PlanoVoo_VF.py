@@ -218,6 +218,7 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
         alturas = np.arange(h, H + deltaLat, deltaLat) # de baixo para cima
         if inverte:
             alturas = alturas[::-1] # de cima para baixo
+            
         LISTA_PONTOS = []
         direcao = 1
         for alt in alturas:

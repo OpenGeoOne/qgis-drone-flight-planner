@@ -29,17 +29,13 @@ from .Funcs import (
     azimute,
     loadParametros,
     saveParametros,
-    linhas_voo_poligono,
-    heading_para_proximo,
-    criar_layer_path,
-    montar_LISTA_PONTOS,
-    salvar_outputs,
+    processar_voo_horizontal,
     post_process_comum
 )
 
 class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        hVooM, abGroundM, dlM, dfopM, dfM, velocM, tStayM, gimbalM, csvM = loadParametros("H_Manual")
+        hVooM, abGroundM, dlM, dfM, velocM, tStayM, gimbalM, csvM = loadParametros("H_Manual")
 
         self.addParameter(QgsProcessingParameterFeatureSource('terreno', 'Area', types=[QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterFeatureSource('primeira_linha','First line - direction flight', types=[QgsProcessing.TypeVectorLine]))
@@ -48,12 +44,8 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=abGroundM))
         self.addParameter(QgsProcessingParameterNumber('dl','Lateral Spacing Between Flight Lines (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dlM))
-
-        frontal = [self.tr('Distance (meters)'), self.tr('Time (seconds)')]
-        self.addParameter(QgsProcessingParameterEnum('dfOpc', self.tr('Front Spacing Between Photos -- Options'), options = frontal, defaultValue= dfopM))
-        self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos -- Value',
+        self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos (m))',
                                                        type=QgsProcessingParameterNumber.Double, minValue=1,defaultValue=dfM))
-
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocM))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
@@ -72,7 +64,6 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         terrain = self.parameterAsBool(parameters, 'aboveGround', context)
         deltaLat = self.parameterAsDouble(parameters, 'dl', context)
         deltaFront = self.parameterAsDouble(parameters, 'df', context)
-        deltaFrontOpc = self.parameterAsInt(parameters, 'dfOpc', context)
         velocidade = self.parameterAsDouble(parameters, 'velocidade', context)
         tempo = self.parameterAsDouble(parameters, 'tempo', context)
         gimbalAng = self.parameterAsDouble(parameters, 'gimbalAng', context)
@@ -115,17 +106,11 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
                         csv=arquivo_csv,
                         abGround=parameters['aboveGround'],
                         dl=parameters['dl'],
-                        df=parameters['df'],
-                        dfop=parameters['dfOpc'])
+                        df=parameters['df'])
         
-        # ===== Sobreposições digitadas manualmente ====================================================
-
-        if deltaFrontOpc == 0:
-            feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Spacing: {deltaFront:.2f} m")
-        else:
-            feedback.pushInfo(f"✅ There is no Front Time.")
-
-        # ===============================================================================
+        # =========================================================================================================
+        # Sobreposições digitadas manualmente
+        feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Spacing: {deltaFront:.2f} m")
 
         # Reprojetar para WGS 84
         crs = area_layer.sourceCrs()
@@ -135,13 +120,14 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         poligono_geom.transform(transformador)
         linha_geom.transform(transformador)
 
-        # ===== Distâncias em graus ======================================================================
-        centroide    = poligono_geom.centroid().asPoint()
+        # Converter Distâncias de mm para graus 
+        centroide = poligono_geom.centroid().asPoint()
         latitude_ref = centroide.y()
-        deltaLat_g   = meters2degrees(deltaLat,   latitude_ref, crs)
-        deltaFront_g = meters2degrees(deltaFront, latitude_ref, crs)
 
-        # ===== Extrair coordenadas ======================================================================
+        # deltaFront em metros para o CSV
+        deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
+
+        # Extrair coordenadas 
         if linha_geom.isMultipart():
             linha_pts = linha_geom.asMultiPolyline()[0]
         else:
@@ -154,34 +140,12 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
 
         p1 = QgsPointXY(linha_pts[0])
 
-        # ===== Linhas de voo ============================================================================
-        linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat_g)
-
-        # ===== LISTA_PONTOS =============================================================================
-        if deltaFrontOpc == 0:
-            LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute, p1,
-                                               modo='distancia')
-        else:
-            LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, 0, altVoo, azimute, p1,
-                                               modo='bordas')
-
-        heading_para_proximo(LISTA_PONTOS, azimute)
-        self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
-
-        feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
-
-        # ============= L I T C H I   &   K M L ==========================================================
-        if arquivo_csv and arquivo_csv.endswith('.csv'):
-            if deltaFrontOpc == 0:  # por distância → mesmo que Sensor
-                self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "HM", velocidade, tempo,
-                                           deltaFront, 0, altVoo, gimbalAng, terrain, None)
-            else:                   # por tempo → mesmo que RC2
-                self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,
-                                           deltaFront, 360, altVoo, gimbalAng, terrain, 1)
-
-            feedback.pushInfo("✅ CSV and KML files successfully generated.")
-        else:
-            feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
+        # Voo horizontal
+        _, self.layer_path, self.kml_path = processar_voo_horizontal(
+            linha_geom, poligono_geom, pol_pts, p1,
+            deltaLat, deltaFront, deltaFront_m,
+            altVoo, azimute, arquivo_csv,
+            velocidade, tempo, gimbalAng, terrain, "HM", feedback)
 
         self.csv_path  = arquivo_csv
         self.abrir_kml = abrir_kml

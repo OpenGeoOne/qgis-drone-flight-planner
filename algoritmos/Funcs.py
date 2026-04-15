@@ -25,7 +25,7 @@ import numpy as np
 import csv
 
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
-                   v=None, t=None, abGround=None, dl=None, df=None, dfop=None, raster=None,
+                   v=None, t=None, abGround=None, dl=None, df=None, raster=None,
                    altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
     # esse raster=None só usado na rotina CSV_Simplifly
@@ -47,7 +47,6 @@ def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, c
         s.setValue(prefixo + "hVooM", h)
         s.setValue(prefixo + "abGroundM", abGround)
         s.setValue(prefixo + "dlM", dl)
-        s.setValue(prefixo + "dfopM", dfop)
         s.setValue(prefixo + "dfM", df)
         s.setValue(prefixo + "velocM", v)
         s.setValue(prefixo + "tStayM", t)
@@ -131,7 +130,6 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "hVooM", 100),
             s.value(prefixo + "abGroundM", True),
             s.value(prefixo + "dlM", 10),
-            s.value(prefixo + "dfopM", 0),
             s.value(prefixo + "dfM", 10),
             s.value(prefixo + "velocM", 8),
             s.value(prefixo + "tStayM", 0),
@@ -452,6 +450,36 @@ def heading_para_proximo(LISTA_PONTOS, azimute_func):
     if LISTA_PONTOS:
         LISTA_PONTOS[-1]['bowangle'] = ultimo_az
 
+    return
+
+def processar_voo_horizontal(linha_geom, poligono_geom, pol_pts, p1,
+                              deltaLat, deltaFront, deltaFront_m,
+                              altVoo, azimute_func, arquivo_csv,
+                              velocidade, tempo, gimbalAng, terrain,
+                              flight_type, feedback):
+    """Bloco comum aos voos horizontais Sensor e Manual.
+    Recebe deltas já em graus (deltaLat, deltaFront) e deltaFront_m em metros para o CSV.
+    Retorna (LISTA_PONTOS, layer_path, kml_path).
+    """
+    # Gerar linhas de voo e LISTA_PONTOS
+    linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat)
+    LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, deltaFront, altVoo, azimute_func, p1, modo='distancia')
+    heading_para_proximo(LISTA_PONTOS, azimute_func)
+    layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
+
+    feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(linhas_voo)} flight line(s).")
+
+    # CSV + KML
+    kml_path = None
+    if arquivo_csv and arquivo_csv.endswith('.csv'):
+        kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, flight_type, velocidade, tempo,
+                                  deltaFront_m, 0, altVoo, gimbalAng, terrain)
+        feedback.pushInfo("✅ CSV and KML files successfully generated.")
+    else:
+        feedback.pushInfo("❌ CSV path not specified. Export step skipped.")
+
+    return LISTA_PONTOS, layer_path, kml_path
+
 def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
     """
     Carrega um CSV exportado pelo plugin como camada de pontos no QGIS.
@@ -532,8 +560,8 @@ def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
     """
     Monta LISTA_PONTOS em serpentina a partir das linhas de voo.
 
-    modo='distancia' : pontos ao longo de cada linha (pontos_na_linha)
-    modo='bordas'    : apenas extremidades de cada linha (RC2 / Manual por tempo)
+    modo='distancia' : pontos ao longo de cada linha (Sensor e Manual)
+    modo='bordas'    : apenas extremidades de cada linha (RC2)
     """
     LISTA_PONTOS = []
     direcao = 1
@@ -579,11 +607,11 @@ def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
     return LISTA_PONTOS
 
 def salvar_outputs(LISTA_PONTOS, arquivo_csv, flight_type, velocidade, tempo,
-                   delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op=None):
+                   delta, angulo, altVoo, gimbalAng, terrain):
     """Gera CSV e KML. Retorna caminho do KML."""
     if arquivo_csv and arquivo_csv.endswith('.csv'):
         _gerar_CSV(flight_type, LISTA_PONTOS, arquivo_csv, velocidade, tempo,
-                  delta, angulo, altVoo, gimbalAng, terrain, deltaFront_op)
+                  delta, angulo, altVoo, gimbalAng, terrain)
 
     base, _ = os.path.splitext(arquivo_csv)
     caminho_kml = base + ".kml"
@@ -620,7 +648,7 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
 
-def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None, deltaFront_op=None):
+def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None):
    # Criar o arquivo CSV do Litchi
    with open(arquivo_csv, mode='w', newline='') as csvfile:
          # Definir os cabeçalhos do arquivo CSV
@@ -645,7 +673,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
          alturavoo    = H
          angulo_gimbal = gimbalAng
          above_ground = 1 if terrain else 0
-         mode_gimbal  = 2 if flight_type in ("S", "HM", "H_RC2", "L") else 0 # somente os Voos Verticais são Manual; voos Horizontais são Custom
+         mode_gimbal  = 2 if flight_type in ("HS", "HM", "H_RC2", "L") else 0 # somente os Voos Verticais são Manual; voos Horizontais são Custom
 
          if flight_type == "H_RC2":
             t1, t2, t3, t4        = -1, 0, -1, 0
@@ -653,8 +681,8 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
             dist_interval         = -1
          else:
             t1, t2, t3, t4        = (1, 0, -1, 0) if tempo == 0 else (0, tempo * 1000, 1, 0)
-            time_interval         = delta if deltaFront_op == 1 else -1
-            dist_interval         = -1    if deltaFront_op == 1 else delta
+            time_interval         = tempo
+            dist_interval         = delta
          
          for ponto in pontos_fotos:
             longitude = ponto['longitude']
@@ -663,7 +691,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
             if flight_type == "VF" or flight_type == "VC":
                alturavoo = ponto['height']
                angulo = ponto['bowangle']
-            elif flight_type in ("L", "H_RC2"):
+            elif flight_type in ("HS", "HM", "H_RC2", "L"):
                angulo = ponto['bowangle']
 
             data = {
