@@ -666,7 +666,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
          alturavoo    = H
          angulo_gimbal = gimbalAng
          above_ground = 1 if terrain else 0
-         mode_gimbal  = 2 if flight_type in ("HS", "HM", "H_RC2", "L") else 0 # somente os Voos Verticais são Manual; voos Horizontais são Custom
+         mode_gimbal = 0 if flight_type in ("VF", "VC") else 2 # Voos Verticais são Manual (0); Voos Horizontais são Custom (2)
 
          if flight_type == "H_RC2":
             t1, t2, t3, t4        = -1, 0, -1, 0
