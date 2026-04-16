@@ -512,15 +512,13 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
     return layer
 
 def criar_layer_path(LISTA_PONTOS, arquivo_csv):
-    """Cria camada de linhas de voo na direção correta da serpentina,
-    quebrando nos pontos de conexão (foto=False)."""
     nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
+
     layer_path = QgsVectorLayer('LineString?crs=EPSG:4326', nome_path, 'memory')
     prov_path = layer_path.dataProvider()
     prov_path.addAttributes([QgsField('id', QVariant.Int)])
     layer_path.updateFields()
 
-    # Quebrar nos pontos de conexão (foto=False) — cada linha de voo vira uma feature
     segmentos = []
     seg = []
     for ponto in LISTA_PONTOS:
@@ -534,7 +532,7 @@ def criar_layer_path(LISTA_PONTOS, arquivo_csv):
     if len(seg) >= 2:
         segmentos.append(seg)
     if not segmentos:
-        segmentos = [[QgsPointXY(ponto['longitude'], ponto['latitude']) for ponto in LISTA_PONTOS]]
+        segmentos = [[QgsPointXY(p['longitude'], p['latitude']) for p in LISTA_PONTOS]]
 
     feats = []
     for i, seg in enumerate(segmentos, start=1):
@@ -553,7 +551,7 @@ def criar_layer_path(LISTA_PONTOS, arquivo_csv):
     line_symbol.appendSymbolLayer(marcador)
     layer_path.setRenderer(QgsSingleSymbolRenderer(line_symbol))
 
-    return layer_path
+    return layer_path  # memória — sem salvar em disco
 
 def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
                          modo='distancia'):

@@ -124,6 +124,10 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         centroide = poligono_geom.centroid().asPoint()
         latitude_ref = centroide.y()
 
+        # deltaLat e deltaFront em metros para o CSV
+        deltaLat_g = meters2degrees(deltaLat, latitude_ref, crs)
+        deltaFront_g = meters2degrees(deltaFront, latitude_ref, crs)
+
         # deltaFront em metros para o CSV
         deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
 
@@ -143,7 +147,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         # Voo horizontal
         _, self.layer_path, self.kml_path = processar_voo_horizontal(
             linha_geom, poligono_geom, pol_pts, p1,
-            deltaLat, deltaFront, deltaFront_m,
+            deltaLat_g, deltaFront_g, deltaFront_m,
             altVoo, azimute, arquivo_csv,
             velocidade, tempo, gimbalAng, terrain, "HM", feedback)
 

@@ -31,6 +31,7 @@ from .Funcs import (
     loadParametros,
     saveParametros,
     salvar_outputs,
+    criar_layer_path,
     post_process_comum
 )
 
@@ -221,12 +222,17 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
             
         LISTA_PONTOS = []
         direcao = 1
-        for alt in alturas:
+        for i, alt in enumerate(alturas):
             for pnt in LISTA[::direcao]:
                 novo_pnt = pnt.copy()
                 novo_pnt['height'] = float(alt)
                 LISTA_PONTOS.append(novo_pnt)
+            # Marcar último ponto do nível como conexão
+            if i < len(alturas) - 1:
+                LISTA_PONTOS[-1]['foto'] = False
             direcao *= -1
+
+        self.layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csv)
 
         feedback.pushInfo(f"✅ {len(LISTA_PONTOS)} waypoints generated across {len(alturas)} flight level(s).")
     
@@ -308,6 +314,7 @@ It enables the planning of a precise vertical trajectory with appropriate overla
     
     def postProcessAlgorithm(self, context, feedback):        
         post_process_comum(context, feedback,
+                           layer_path=getattr(self, 'layer_path', None),
                            csv_path=getattr(self, 'csv_path', None),
                            kml_path=getattr(self, 'kml_path', None),
                            abrir_kml=getattr(self, 'abrir_kml', False))
