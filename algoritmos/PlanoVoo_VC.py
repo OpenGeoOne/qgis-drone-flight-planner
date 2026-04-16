@@ -49,7 +49,7 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=altMinVC))
         self.addParameter(QgsProcessingParameterNumber('deltaVertical','Vertical Spacing (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dVertVC))
-        self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle in degrees between Photos (360.0 / numPartes) (1 a 90 degrees)',
+        self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle in degrees between Photos (360.0 / numPartes) (1 a 90 degrees) (Ex: 360/45 = 8 photos per circle)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=1, maxValue=90, defaultValue=anguloFotoVC))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))

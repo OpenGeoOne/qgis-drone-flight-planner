@@ -22,10 +22,11 @@ from qgis.core import *
 import os
 from qgis.PyQt.QtCore import QVariant
 import numpy as np
+import math
 import csv
 
 def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, csv=None, 
-                   v=None, t=None, abGround=None, dl=None, df=None, raster=None,
+                   v=None, t=None, abGround=None, dl=None, df=None, raster=None, nl = None,
                    altMin=None, anguloFotoVC=None, dVertVC=None, csvI=None, crs=None, 
                    tol=None, add1=None, add2=None, add3=None):
     # esse raster=None só usado na rotina CSV_Simplifly
@@ -64,7 +65,7 @@ def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, c
         s.setValue(prefixo + "hVooL", h)
         s.setValue(prefixo + "abGroundL", abGround)
         s.setValue(prefixo + "dlL", dl)
-        s.setValue(prefixo + "nLinL", dfop)
+        s.setValue(prefixo + "nLinL", nl)
         s.setValue(prefixo + "dfL", df)
         s.setValue(prefixo + "velocL", v)
         s.setValue(prefixo + "tStayL", t)
@@ -316,74 +317,54 @@ def pontos_na_linha(geom_linha, deltaFront_graus, altVoo, azimute_func):
 def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
     """
     Gera linhas de voo paralelas que preenchem o polígono.
-
-    Regra SEMPRE garantida:
-      - Primeira linha: sobre o lado do polígono onde P1 está
-      - Última linha:   sobre o lado oposto do polígono
-      - Entre elas:     linhas espaçadas por deltaLat (0 ou mais)
-
-    Parâmetros:
-        linha_ref_geom : QgsGeometry — linha de referência (direção das linhas de voo)
-        poligono_geom  : QgsGeometry — polígono da área (já em WGS84)
-        pol_pts        : list de pontos — vértices do polígono
-        p1             : QgsPointXY — ponto SOBRE o lado do polígono (início do voo)
-        deltaLat       : float — espaçamento lateral entre linhas (em graus)
+    - Primeira linha: sobre a borda do polígono onde P1 está
+    - Última linha:   sobre a borda oposta
+    - Entre elas:     linhas espaçadas por deltaLat
     """
-    import math
 
-    # ── Vetor da direção das linhas de voo ────────────────────────────────────
+    # A linha de referência define a direção das linhas de voo
+    # O vetor perpendicular (nx, ny) é a direção em que o drone avança de uma linha para a próxima
     pts_ref = linha_ref_geom.asPolyline()
     dx = pts_ref[-1].x() - pts_ref[0].x()
     dy = pts_ref[-1].y() - pts_ref[0].y()
     comp = math.sqrt(dx**2 + dy**2)
     if comp == 0:
         return []
-    vx = dx / comp   # versor ao longo das linhas de voo
+    vx = dx / comp
     vy = dy / comp
-    nx = -vy         # versor perpendicular (direção de varredura)
+    nx = -vy
     ny =  vx
 
-    # ── Projeções nos dois eixos ──────────────────────────────────────────────
+    # Projeções - proj_p1_perp é a "régua" que mede onde estamos na direção de varredura
     proj_p1_perp  = p1.x() * nx + p1.y() * ny
     proj_p1_along = p1.x() * vx + p1.y() * vy
 
-    proj_perp_verts  = [QgsPointXY(pt).x() * nx + QgsPointXY(pt).y() * ny for pt in pol_pts]
     proj_along_verts = [QgsPointXY(pt).x() * vx + QgsPointXY(pt).y() * vy for pt in pol_pts]
-
+    proj_perp_verts  = [QgsPointXY(pt).x() * nx + QgsPointXY(pt).y() * ny for pt in pol_pts]
     min_along = min(proj_along_verts)
     max_along = max(proj_along_verts)
-    ext = max_along - min_along  # extensão para garantir cobertura total ao longo
+    ext = max_along - min_along
 
-    # ── Direção do interior: centróide do polígono ────────────────────────────
+    # O centróide do polígono está de um lado de p1 - diz em qual direção ir a partir de p1 para entrar no polígono
     centroide = poligono_geom.centroid().asPoint()
     proj_centro_perp = centroide.x() * nx + centroide.y() * ny
     sinal_interior = 1 if proj_centro_perp > proj_p1_perp else -1
 
-    # ── Distância até o lado oposto ───────────────────────────────────────────
-    # Vértice mais distante de p1 na direção do interior
+    # Borda real do polígono no lado de p1
+    # a função traça uma linha paralela às linhas de voo passando pela posição de p1, 
+    # e intersecta com a borda do polígono para encontrar onde começa o polígono
+    proj_p1_perp = min(
+        proj_perp_verts,
+        key=lambda v: (v - proj_p1_perp) * sinal_interior
+    )
+
+    # Distância total na direção perpendicular
     dist_max_interior = max(
         (v - proj_p1_perp) * sinal_interior
         for v in proj_perp_verts
     )
 
-    # ── Montar lista de offsets: SEMPRE primeiro e último sobre as bordas ─────
-    EPSILON = deltaLat * 0.02   # distância mínima da borda para evitar vértice degenerado
-
-    offsets = []
-    offsets.append(EPSILON)                          # primeira linha: sobre a borda de P1
-    offset = deltaLat
-    while offset < dist_max_interior - EPSILON:      # linhas interiores
-        offsets.append(offset)
-        offset += deltaLat
-    offsets.append(dist_max_interior - EPSILON)      # última linha: sobre a borda oposta
-
-    # Remover duplicatas próximas (quando deltaLat > largura do polígono)
-    offsets_limpos = [offsets[0]]
-    for o in offsets[1:]:
-        if o - offsets_limpos[-1] > EPSILON:
-            offsets_limpos.append(o)
-
-    # ── Cortar com o polígono e normalizar ────────────────────────────────────
+    # Função de clip 
     def clipar(geom_off):
         geom_clip = geom_off.intersection(poligono_geom)
         if not geom_clip or geom_clip.isEmpty():
@@ -395,28 +376,39 @@ def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
             geom_clip = QgsGeometry.fromPolylineXY(max(partes, key=len))
         return geom_clip
 
-    # ── Gerar linhas ──────────────────────────────────────────────────────────
+    # Função de orientar e adicionar
+    def orientar_e_adicionar(geom_clip, lista):
+        if not geom_clip:
+            return
+        pts = geom_clip.asMultiPolyline()[0] if geom_clip.isMultipart() else geom_clip.asPolyline()
+        if not pts:
+            return
+        proj_ini = pts[0].x()  * vx + pts[0].y()  * vy
+        proj_fim = pts[-1].x() * vx + pts[-1].y() * vy
+        if abs(proj_fim - proj_p1_along) < abs(proj_ini - proj_p1_along):
+            pts = list(reversed(pts))
+        lista.append(QgsGeometry.fromPolylineXY(pts))
+
+    # Montar offsets
+    EPSILON = deltaLat * 0.01  # 1% do deltaLat — invisível mas garante clip válido
+
+    offsets = []
+    offset = EPSILON           # primeira: quase na borda, mas garantidamente dentro
+    while offset <= dist_max_interior + EPSILON:
+        offsets.append(offset)
+        offset += deltaLat
+
+    # Gerar linhas
     linhas_orientadas = []
 
-    for offset in offsets_limpos:
+    for offset in offsets:
         perp_pos = proj_p1_perp + sinal_interior * offset
-
         cx = nx * perp_pos
         cy = ny * perp_pos
-
         p_a = QgsPointXY(cx + vx * (min_along - ext), cy + vy * (min_along - ext))
         p_b = QgsPointXY(cx + vx * (max_along + ext), cy + vy * (max_along + ext))
-
         geom_clip = clipar(QgsGeometry.fromPolylineXY([p_a, p_b]))
-        if geom_clip:
-            pts = geom_clip.asMultiPolyline()[0] if geom_clip.isMultipart() else geom_clip.asPolyline()
-            if pts:
-                # Orientar: extremo mais próximo de P1 é o início
-                proj_ini = pts[0].x()  * vx + pts[0].y()  * vy
-                proj_fim = pts[-1].x() * vx + pts[-1].y() * vy
-                if abs(proj_fim - proj_p1_along) < abs(proj_ini - proj_p1_along):
-                    pts = list(reversed(pts))
-                linhas_orientadas.append(QgsGeometry.fromPolylineXY(pts))
+        orientar_e_adicionar(geom_clip, linhas_orientadas)
 
     return linhas_orientadas
 
@@ -513,7 +505,6 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
 
 def criar_layer_path(LISTA_PONTOS, arquivo_csv):
     nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
-
     layer_path = QgsVectorLayer('LineString?crs=EPSG:4326', nome_path, 'memory')
     prov_path = layer_path.dataProvider()
     prov_path.addAttributes([QgsField('id', QVariant.Int)])
@@ -521,14 +512,30 @@ def criar_layer_path(LISTA_PONTOS, arquivo_csv):
 
     segmentos = []
     seg = []
+    ultimo_ponto_foto = None  # último ponto com foto=True
+
     for ponto in LISTA_PONTOS:
-        eh_foto = ponto['foto'] if isinstance(ponto, dict) and 'foto' in ponto else True
+        eh_foto = ponto.get('foto', True)
+        pt = QgsPointXY(ponto['longitude'], ponto['latitude'])
+
         if eh_foto:
-            seg.append(QgsPointXY(ponto['longitude'], ponto['latitude']))
+            # Verificar se seg começa com ponto de conexão (1 ponto apenas)
+            if len(seg) == 1 and seg[0] != pt:
+                # Fechar segmento de conexão
+                seg.append(pt)
+                segmentos.append(seg)
+                # Iniciar novo segmento de voo com este ponto foto
+                seg = [pt]
+            else:
+                seg.append(pt)
         else:
+            # Fechar segmento de voo incluindo ponto de conexão
+            seg.append(pt)
             if len(seg) >= 2:
                 segmentos.append(seg)
-            seg = []
+            # Novo segmento começa do ponto de conexão
+            seg = [pt]
+
     if len(seg) >= 2:
         segmentos.append(seg)
     if not segmentos:
@@ -543,6 +550,7 @@ def criar_layer_path(LISTA_PONTOS, arquivo_csv):
     prov_path.addFeatures(feats)
     layer_path.updateExtents()
 
+    # Simbologia
     line_symbol = QgsLineSymbol.createSimple({'color': 'blue', 'width': '0.3'})
     seta = QgsMarkerSymbol.createSimple({'name': 'arrow', 'size': '5', 'color': 'blue', 'angle': '90'})
     marcador = QgsMarkerLineSymbolLayer()
@@ -588,19 +596,6 @@ def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
             LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], pontos_linha[0], altVoo))
         LISTA_PONTOS.extend(pontos_linha)
         direcao *= -1
-
-    # Garantir que o voo começa pelo lado de p1
-    # Usa o primeiro ponto da primeira linha de voo como referência
-    # (mais confiável que p1 quando a linha de ref não está sobre a borda)
-    if LISTA_PONTOS and linhas_voo:
-        primeira_linha = linhas_voo[0]
-        pts_ref = primeira_linha.asMultiPolyline()[0] if primeira_linha.isMultipart() else primeira_linha.asPolyline()
-        if pts_ref:
-            ref = QgsPointXY(pts_ref[0])  # extremo inicial da primeira linha de voo
-            d_ini = (LISTA_PONTOS[0]['longitude']  - ref.x())**2 + (LISTA_PONTOS[0]['latitude']  - ref.y())**2
-            d_fim = (LISTA_PONTOS[-1]['longitude'] - ref.x())**2 + (LISTA_PONTOS[-1]['latitude'] - ref.y())**2
-            if d_fim < d_ini:
-                LISTA_PONTOS.reverse()
 
     return LISTA_PONTOS
 

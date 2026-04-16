@@ -148,7 +148,7 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
         # ============= L I T C H I   &   K M L ==========================================================
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "H_RC2", 1, 0,
-                                           0, 360, altVoo, gimbalAng, terrain, 0)
+                                           0, 360, altVoo, gimbalAng, terrain)
             
             feedback.pushInfo("✅ CSV and KML files successfully generated.")
         else:

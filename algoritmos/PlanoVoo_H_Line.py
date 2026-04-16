@@ -112,7 +112,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
                         abGround=parameters['aboveGround'],
                         dl=parameters['bf'],
                         df=parameters['df'],
-                        dfop=parameters['nLinhas']
+                        nl=parameters['nLinhas']
                         )
 
         # ===============================================================================
@@ -202,7 +202,7 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
         # =============L I T C H I==========================================================
         if arquivo_csv and arquivo_csv.endswith('.csv'):
             self.kml_path = salvar_outputs(LISTA_PONTOS, arquivo_csv, "L", velocidade, tempo,
-                                           deltaFront, 0, altVoo, gimbalAng, terrain, None)
+                                           deltaFront, 0, altVoo, gimbalAng, terrain)
 
             feedback.pushInfo("✅ CSV file successfully generated.")
         else:
