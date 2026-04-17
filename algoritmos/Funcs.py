@@ -666,7 +666,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
          alturavoo    = H
          angulo_gimbal = gimbalAng
          above_ground = 1 if terrain else 0
-         mode_gimbal = 0 if flight_type in ("VF", "VC") else 2 # Voos Verticais são Manual (0); Voos Horizontais são Custom (2)
+         mode_gimbal = 2
 
          if flight_type == "H_RC2":
             t1, t2, t3, t4        = -1, 0, -1, 0
@@ -677,11 +677,21 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
             time_interval         = tempo
             dist_interval         = delta
          
+         ponto_anterior = None
          for ponto in pontos_fotos:
             longitude = ponto['longitude']
             latitude = ponto['latitude']
-
-            if flight_type == "VF" or flight_type == "VC":
+            
+            # Verificar distância mínima (60cm = ~0.0000054 graus)
+            if ponto_anterior:
+                dist = ((longitude - ponto_anterior['longitude'])**2 + 
+                        (latitude - ponto_anterior['latitude'])**2) ** 0.5
+                if dist < 0.0000060:  # menos de ~60cm
+                    continue
+            
+            ponto_anterior = ponto
+            
+            if flight_type in ("VF", "VC"):
                alturavoo = ponto['height']
                angulo = ponto['bowangle']
             elif flight_type in ("HS", "HM", "H_RC2", "L"):

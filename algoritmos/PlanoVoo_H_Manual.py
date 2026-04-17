@@ -129,7 +129,7 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         deltaFront_g = meters2degrees(deltaFront, latitude_ref, crs)
 
         # deltaFront em metros para o CSV
-        deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
+        deltaFront_m = deltaFront  # já está em metros
 
         # Extrair coordenadas 
         if linha_geom.isMultipart():
