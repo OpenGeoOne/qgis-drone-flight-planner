@@ -21,9 +21,11 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
+import processing
 from ..images.Imgs import *
 import csv
 import os
+import math
 from .Funcs import loadParametros, saveParametros, csv_como_layer, criar_layer_path
 
 class CSV_Merge(QgsProcessingAlgorithm):
@@ -102,9 +104,8 @@ class CSV_Merge(QgsProcessingAlgorithm):
                 for row in rows1:
                     writer.writerow(row)
 
-                # Ponto de conexão entre os dois voos
-                # Usa o último ponto do voo 1 e o primeiro do voo 2
-                # e interpola um waypoint intermediário
+                # Ponto de conexão entre os dois Voos
+                # Usa o último ponto do voo 1 e o primeiro do voo 2 e interpola um waypoint intermediário
                 if rows1 and rows2:
                     try:
                         idx_lon = header_out.index('longitude')
@@ -118,9 +119,7 @@ class CSV_Merge(QgsProcessingAlgorithm):
                         lat_mid = (float(last[idx_lat]) + float(first[idx_lat])) / 2
                         alt_mid = max(float(last[idx_alt]), float(first[idx_alt]))
 
-        # =========================================================================
-        # Criar ponto de conexão baseado no último ponto do voo 1
-                        import math
+                        # Criar ponto de conexão baseado no último ponto do voo 1
                         idx_heading = header_out.index('heading(deg)') if 'heading(deg)' in header_out else None
 
                         # Calcular heading do ponto médio para o primeiro ponto do voo 2
@@ -147,24 +146,9 @@ class CSV_Merge(QgsProcessingAlgorithm):
 
         # =========================================================================
         # Camadas no QGIS
-        import processing
-
         csv_name = os.path.splitext(os.path.basename(arquivo_csvS))[0]
 
-        # Camada de pontos
-        if parameters['ver_Points_merge']:
-            layer_pontos = csv_como_layer(arquivo_csvS, layer_name=None)
-            if layer_pontos is None or not layer_pontos.isValid():
-                feedback.reportError("❌ Could not load merged CSV as point layer.")
-            else:
-                QgsProject.instance().addMapLayer(layer_pontos)
-                feedback.pushInfo("✅ Merged points layer added to QGIS.")
-                try:
-                    processing.run("lftools:magicstyles", {'LAYER': layer_pontos, 'STYLE_POINT': 1})
-                except:
-                    feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
-
-        # Linha de voo — construir LISTA_PONTOS a partir do CSV merged
+        # Linha de Voo
         try:
             LISTA_PONTOS = []
             with open(arquivo_csvS, 'r', encoding='utf-8') as f:
@@ -179,13 +163,25 @@ class CSV_Merge(QgsProcessingAlgorithm):
                         })
                     except:
                         continue
-
             layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csvS)
             layer_path.setName(f"path - {csv_name}")
             QgsProject.instance().addMapLayer(layer_path)
             feedback.pushInfo("✅ Flight path layer added to QGIS.")
         except Exception as e:
             feedback.reportError(f"⚠️ Could not create flight path layer: {str(e)}")
+
+        # Camada de pontos
+        if parameters['ver_Points_merge']:
+            layer_pontos = csv_como_layer(arquivo_csvS, layer_name=None)
+            if layer_pontos is None or not layer_pontos.isValid():
+                feedback.reportError("❌ Could not load merged CSV as point layer.")
+            else:
+                QgsProject.instance().addMapLayer(layer_pontos)
+                feedback.pushInfo("✅ Merged points layer added to QGIS.")
+                try:
+                    processing.run("lftools:magicstyles", {'LAYER': layer_pontos, 'STYLE_POINT': 1})
+                except:
+                    feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ CSV Merge executed successfully.")

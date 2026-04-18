@@ -129,9 +129,9 @@ class PlanoVoo_H_Manual(QgsProcessingAlgorithm):
         deltaFront_g = meters2degrees(deltaFront, latitude_ref, crs)
 
         # deltaFront em metros para o CSV
-        deltaFront_m = deltaFront  # já está em metros
+        deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
 
-        # Extrair coordenadas 
+        # Extrair coordenadas
         if linha_geom.isMultipart():
             linha_pts = linha_geom.asMultiPolyline()[0]
         else:

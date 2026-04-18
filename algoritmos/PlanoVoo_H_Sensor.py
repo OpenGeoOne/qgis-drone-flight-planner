@@ -155,20 +155,21 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         D_lat = dc_g * alt_g / f_g
         SD_lat = percL * D_lat
         h1_L = SD_lat / (2 * tg_L)
-        deltaLat = SD_lat * (alt_g / h1_L - 1)
+        deltaLat_g = SD_lat * (alt_g / h1_L - 1)
 
         # Espaçamento frontal entre fotos
         tg_F = dl_g / (2 * f_g)
         D_front = dl_g * alt_g / f_g
         SD_front = percF * D_front
         h1_F = SD_front / (2 * tg_F)
-        deltaFront = SD_front * (alt_g / h1_F - 1)
-
-        # Sobreposições Calculadas
-        feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat:.2f} m  Frontal Spacing: {deltaFront:.2f} m")
+        deltaFront_g = SD_front * (alt_g / h1_F - 1)
 
         # deltaFront em metros para o CSV
-        deltaFront_m = deltaFront / meters2degrees(1, latitude_ref, crs)
+        deltaLat_m = deltaLat_g / meters2degrees(1, latitude_ref, crs)
+        deltaFront_m = deltaFront_g / meters2degrees(1, latitude_ref, crs)
+
+        # Sobreposições Calculadas
+        feedback.pushInfo(f"✅ Lateral Spacing: {deltaLat_m:.2f} m  Frontal Spacing: {deltaFront_m:.2f} m")
 
         # Extrair coordenadas
         if linha_geom.isMultipart():
@@ -186,7 +187,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
         # Voo horizontal
         _, self.layer_path, self.kml_path = processar_voo_horizontal(
             linha_geom, poligono_geom, pol_pts, p1,
-            deltaLat, deltaFront, deltaFront_m,
+            deltaLat_g, deltaFront_g, deltaFront_m,
             altVoo, azimute, arquivo_csv,
             velocidade, tempo, gimbalAng, terrain, "HS", feedback)
 
@@ -195,7 +196,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
 
         # ============= Encerramento ==========================================================
         feedback.pushInfo("")
-        feedback.pushInfo("✅ Horizontal Manual Flight Plan successfully executed.")
+        feedback.pushInfo("✅ Horizontal Sensor Flight Plan successfully executed.")
         feedback.pushInfo("")
 
         return {'csv': arquivo_csv, 'kml': self.kml_path}

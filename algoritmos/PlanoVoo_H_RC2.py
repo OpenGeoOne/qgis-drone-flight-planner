@@ -131,13 +131,52 @@ class PlanoVoo_H_RC2(QgsProcessingAlgorithm):
 
         p1 = QgsPointXY(linha_pts[0])
 
-        # Gerar linhas de voo 
+        # Gerar linhas de voo
         linhas_voo = linhas_voo_poligono(linha_geom, poligono_geom, pol_pts, p1, deltaLat_g)
-        
-        # Montar LISTA_PONTOS: apenas extremidades de cada linha
-        # RC2: o drone voa a linha inteira com a câmera controlada pelo RC2 —
-        # apenas 2 waypoints por linha (início e fim) + ponto de conexão entre linhas
-        LISTA_PONTOS = montar_LISTA_PONTOS(linhas_voo, 0, altVoo, azimute, p1, modo='bordas')
+
+        # Montar LISTA_PONTOS com waypoints de borda (10% do comprimento)
+        # Cada linha: início → 10% → 90% → fim + ponto de conexão
+        LISTA_PONTOS = []
+        direcao = 1
+
+        for geom_linha in linhas_voo:
+            pts = geom_linha.asMultiPolyline()[0] if geom_linha.isMultipart() else geom_linha.asPolyline()
+            if not pts:
+                direcao *= -1
+                continue
+
+            p_ini = pts[0]
+            p_fim = pts[-1]
+
+            # Calcular ponto a 10% e 90% do comprimento
+            dx = p_fim.x() - p_ini.x()
+            dy = p_fim.y() - p_ini.y()
+
+            p_10 = QgsPointXY(p_ini.x() + dx * 0.10, p_ini.y() + dy * 0.10)
+            p_90 = QgsPointXY(p_ini.x() + dx * 0.90, p_ini.y() + dy * 0.90)
+
+            if direcao == 1:
+                pontos_linha = [
+                    {'longitude': float(p_ini.x()), 'latitude': float(p_ini.y()), 'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_10.x()),  'latitude': float(p_10.y()),  'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_90.x()),  'latitude': float(p_90.y()),  'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_fim.x()), 'latitude': float(p_fim.y()), 'height': altVoo, 'bowangle': 0, 'foto': True},
+                ]
+            else:
+                pontos_linha = [
+                    {'longitude': float(p_fim.x()), 'latitude': float(p_fim.y()), 'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_90.x()),  'latitude': float(p_90.y()),  'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_10.x()),  'latitude': float(p_10.y()),  'height': altVoo, 'bowangle': 0, 'foto': True},
+                    {'longitude': float(p_ini.x()), 'latitude': float(p_ini.y()), 'height': altVoo, 'bowangle': 0, 'foto': True},
+                ]
+
+            # Ponto de conexão entre linhas
+            if LISTA_PONTOS and pontos_linha:
+                from .Funcs import pontos_conexao
+                LISTA_PONTOS.extend(pontos_conexao(LISTA_PONTOS[-1], pontos_linha[0], altVoo))
+
+            LISTA_PONTOS.extend(pontos_linha)
+            direcao *= -1
 
         # Heading
         heading_para_proximo(LISTA_PONTOS, azimute)

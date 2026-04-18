@@ -316,55 +316,73 @@ def pontos_na_linha(geom_linha, deltaFront_graus, altVoo, azimute_func):
 
 def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
     """
-    Gera linhas de voo paralelas que preenchem o polígono.
-    - Primeira linha: sobre a borda do polígono onde P1 está
-    - Última linha:   sobre a borda oposta
-    - Entre elas:     linhas espaçadas por deltaLat
+    Direção: lado do polígono mais próximo de p1.
+    Sentido: determinado pelo ponto [0] da linha de referência.
+    Gera linhas de voo paralelas que preenchem o polígono sem ultrapassar o lado oposto
     """
 
-    # A linha de referência define a direção das linhas de voo
-    # O vetor perpendicular (nx, ny) é a direção em que o drone avança de uma linha para a próxima
-    pts_ref = linha_ref_geom.asPolyline()
-    dx = pts_ref[-1].x() - pts_ref[0].x()
-    dy = pts_ref[-1].y() - pts_ref[0].y()
+    # 1. Encontrar o lado do polígono mais próximo de p1
+    vertices = [QgsPointXY(pt) for pt in pol_pts[:-1]]
+    n = len(vertices)
+    px, py = p1.x(), p1.y()
+
+    lado_idx = None
+    dist_min = float('inf')
+    for i in range(n):
+        ax, ay = vertices[i].x(), vertices[i].y()
+        bx, by = vertices[(i+1) % n].x(), vertices[(i+1) % n].y()
+        abx, aby = bx - ax, by - ay
+        ab2 = abx**2 + aby**2
+        if ab2 == 0:
+            continue
+        t = max(0.0, min(1.0, ((px-ax)*abx + (py-ay)*aby) / ab2))
+        dist = math.sqrt((px - ax - t*abx)**2 + (py - ay - t*aby)**2)
+        if dist < dist_min:
+            dist_min = dist
+            lado_idx = i
+
+    lado_A = vertices[lado_idx]
+    lado_B = vertices[(lado_idx + 1) % n]
+
+    # 2. Vetor de direção do lado
+    dx = lado_B.x() - lado_A.x()
+    dy = lado_B.y() - lado_A.y()
     comp = math.sqrt(dx**2 + dy**2)
     if comp == 0:
         return []
-    vx = dx / comp
-    vy = dy / comp
-    nx = -vy
-    ny =  vx
+    vx, vy = dx / comp, dy / comp
 
-    # Projeções - proj_p1_perp é a "régua" que mede onde estamos na direção de varredura
-    proj_p1_perp  = p1.x() * nx + p1.y() * ny
-    proj_p1_along = p1.x() * vx + p1.y() * vy
+    # Ajustar sentido pela linha de referência
+    # Se o produto escalar for negativo, inverter o sentido
+    pts_ref = linha_ref_geom.asPolyline()
+    if len(pts_ref) >= 2:
+        ref_dx = pts_ref[-1].x() - pts_ref[0].x()
+        ref_dy = pts_ref[-1].y() - pts_ref[0].y()
+        if vx * ref_dx + vy * ref_dy < 0:
+            vx, vy = -vx, -vy
+            lado_A, lado_B = lado_B, lado_A
 
-    proj_along_verts = [QgsPointXY(pt).x() * vx + QgsPointXY(pt).y() * vy for pt in pol_pts]
-    proj_perp_verts  = [QgsPointXY(pt).x() * nx + QgsPointXY(pt).y() * ny for pt in pol_pts]
+    nx, ny = -vy, vx  # perpendicular ao lado
+
+    # 3. Projeções
+    proj_p1_perp     = lado_A.x() * nx + lado_A.y() * ny
+    proj_along_verts = [v.x() * vx + v.y() * vy for v in vertices]
+    proj_perp_verts  = [v.x() * nx + v.y() * ny for v in vertices]
     min_along = min(proj_along_verts)
     max_along = max(proj_along_verts)
     ext = max_along - min_along
 
-    # O centróide do polígono está de um lado de p1 - diz em qual direção ir a partir de p1 para entrar no polígono
+    # 4. Direção do interior
     centroide = poligono_geom.centroid().asPoint()
     proj_centro_perp = centroide.x() * nx + centroide.y() * ny
     sinal_interior = 1 if proj_centro_perp > proj_p1_perp else -1
 
-    # Borda real do polígono no lado de p1
-    # a função traça uma linha paralela às linhas de voo passando pela posição de p1, 
-    # e intersecta com a borda do polígono para encontrar onde começa o polígono
-    proj_p1_perp = min(
-        proj_perp_verts,
-        key=lambda v: (v - proj_p1_perp) * sinal_interior
-    )
-
-    # Distância total na direção perpendicular
     dist_max_interior = max(
         (v - proj_p1_perp) * sinal_interior
         for v in proj_perp_verts
     )
 
-    # Função de clip 
+    # 5. Função de clip
     def clipar(geom_off):
         geom_clip = geom_off.intersection(poligono_geom)
         if not geom_clip or geom_clip.isEmpty():
@@ -376,39 +394,28 @@ def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
             geom_clip = QgsGeometry.fromPolylineXY(max(partes, key=len))
         return geom_clip
 
-    # Função de orientar e adicionar
-    def orientar_e_adicionar(geom_clip, lista):
-        if not geom_clip:
-            return
-        pts = geom_clip.asMultiPolyline()[0] if geom_clip.isMultipart() else geom_clip.asPolyline()
-        if not pts:
-            return
-        proj_ini = pts[0].x()  * vx + pts[0].y()  * vy
-        proj_fim = pts[-1].x() * vx + pts[-1].y() * vy
-        if abs(proj_fim - proj_p1_along) < abs(proj_ini - proj_p1_along):
-            pts = list(reversed(pts))
-        lista.append(QgsGeometry.fromPolylineXY(pts))
-
-    # Montar offsets
-    EPSILON = deltaLat * 0.01  # 1% do deltaLat — invisível mas garante clip válido
-
-    offsets = []
-    offset = EPSILON           # primeira: quase na borda, mas garantidamente dentro
-    while offset <= dist_max_interior + EPSILON:
-        offsets.append(offset)
-        offset += deltaLat
-
-    # Gerar linhas
+    # 6. Gerar linhas
+    EPSILON = deltaLat * 0.01
     linhas_orientadas = []
 
-    for offset in offsets:
+    # Primeira linha: sobre o lado do polígono
+    geom_primeira = QgsGeometry.fromPolylineXY([lado_A, lado_B])
+    linhas_orientadas.append(geom_primeira)
+
+    # 7. Linhas paralelas: projeção perpendicular + clip
+    offset = deltaLat
+    while offset <= dist_max_interior - EPSILON:
         perp_pos = proj_p1_perp + sinal_interior * offset
         cx = nx * perp_pos
         cy = ny * perp_pos
         p_a = QgsPointXY(cx + vx * (min_along - ext), cy + vy * (min_along - ext))
         p_b = QgsPointXY(cx + vx * (max_along + ext), cy + vy * (max_along + ext))
         geom_clip = clipar(QgsGeometry.fromPolylineXY([p_a, p_b]))
-        orientar_e_adicionar(geom_clip, linhas_orientadas)
+        if geom_clip:
+            pts = geom_clip.asPolyline()
+            if pts:
+                linhas_orientadas.append(QgsGeometry.fromPolylineXY(pts))
+        offset += deltaLat
 
     return linhas_orientadas
 
