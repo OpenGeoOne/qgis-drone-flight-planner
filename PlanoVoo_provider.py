@@ -24,7 +24,7 @@ from qgis.PyQt.QtGui import QIcon
 # Importa os algoritmos
 from .algoritmos.PlanoVoo_H_Sensor import PlanoVoo_H_Sensor
 from .algoritmos.PlanoVoo_H_Manual import PlanoVoo_H_Manual
-from .algoritmos.PlanoVoo_H_RC2 import PlanoVoo_H_RC2
+from .algoritmos.PlanoVoo_H_Dji_Fly import PlanoVoo_H_Dji_Fly
 from .algoritmos.PlanoVoo_H_Line import PlanoVoo_H_Line
 from .algoritmos.PlanoVoo_VF import PlanoVoo_VF
 from .algoritmos.PlanoVoo_VC import PlanoVoo_VC
@@ -41,7 +41,7 @@ class PlanoVooProvider(QgsProcessingProvider):
     def loadAlgorithms(self):
         self.addAlgorithm(PlanoVoo_H_Sensor())
         self.addAlgorithm(PlanoVoo_H_Manual())
-        self.addAlgorithm(PlanoVoo_H_RC2())
+        self.addAlgorithm(PlanoVoo_H_Dji_Fly())
         self.addAlgorithm(PlanoVoo_H_Line())
         self.addAlgorithm(PlanoVoo_VC())
         self.addAlgorithm(PlanoVoo_VF())

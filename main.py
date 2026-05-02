@@ -60,7 +60,7 @@ class GeoFlightPlanner:
         # Add Horizontal submenu actions
         self._add_action("Sensor", lambda: self._run_algorithm("Flight_Plan_H_Sensor"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
         self._add_action("Manual", lambda: self._run_algorithm("Flight_Plan_H_Manual"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
-        self._add_action("RC2 Controller", lambda: self._run_algorithm("Flight_Plan_H_RC2"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
+        self._add_action("Dji Fly", lambda: self._run_algorithm("Flight_Plan_H_Dji_Fly"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
         self._add_action("Line", lambda: self._run_algorithm("Flight_Plan_H_Line"), horizontal_menu, os.path.join(icon_dir, "Horizontal.png"))
 
         # Add Vertical submenu actions

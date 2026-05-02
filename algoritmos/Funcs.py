@@ -54,12 +54,12 @@ def saveParametros(tipoVoo, pontoInicial=None, h=None, dist=None, gimbal=None, c
         s.setValue(prefixo + "gimbalM", gimbal)
         s.setValue(prefixo + "csvM", csv)
 
-    elif tipoVoo == "H_Manual_RC2_Controller":
-        s.setValue(prefixo + "hVooRC2", h)
-        s.setValue(prefixo + "abGroundRC2", abGround)
-        s.setValue(prefixo + "dlRC2", dl)
-        s.setValue(prefixo + "gimbalRC2", gimbal)
-        s.setValue(prefixo + "csvRC2", csv)
+    elif tipoVoo == "H_Manual_Dji_Fly":
+        s.setValue(prefixo + "hVooDji_Fly", h)
+        s.setValue(prefixo + "abGroundDji_Fly", abGround)
+        s.setValue(prefixo + "dlDji_Fly", dl)
+        s.setValue(prefixo + "gimbalDji_Fly", gimbal)
+        s.setValue(prefixo + "csvDji_Fly", csv)
 
     elif tipoVoo == "H_Line":
         s.setValue(prefixo + "hVooL", h)
@@ -138,13 +138,13 @@ def loadParametros(tipoVoo):
             s.value(prefixo + "csvM", "")
         )
 
-    elif tipoVoo == "H_Manual_RC2_Controller":
+    elif tipoVoo == "H_Manual_Dji_Fly":
         return (
-            s.value(prefixo + "hVooRC2", 100),
-            s.value(prefixo + "abGroundRC2", True),
-            s.value(prefixo + "dlRC2", 10),
-            s.value(prefixo + "gimbalRC2", -90),
-            s.value(prefixo + "csvRC2", "")
+            s.value(prefixo + "hVooDji_Fly", 100),
+            s.value(prefixo + "abGroundDji_Fly", True),
+            s.value(prefixo + "dlDji_Fly", 10),
+            s.value(prefixo + "gimbalDji_Fly", -90),
+            s.value(prefixo + "csvDji_Fly", "")
         )
     
     elif tipoVoo == "H_Line":
@@ -574,7 +574,7 @@ def montar_LISTA_PONTOS(linhas_voo, deltaFront_g, altVoo, azimute_func, p1,
     Monta LISTA_PONTOS em serpentina a partir das linhas de voo.
 
     modo='distancia' : pontos ao longo de cada linha (Sensor e Manual)
-    modo='bordas'    : apenas extremidades de cada linha (RC2)
+    modo='bordas'    : apenas extremidades de cada linha (Dji_Fly)
     """
     LISTA_PONTOS = []
     direcao = 1
@@ -675,7 +675,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
          above_ground = 1 if terrain else 0
          mode_gimbal = 2
 
-         if flight_type == "H_RC2":
+         if flight_type == "H_Dji_Fly":
             t1, t2, t3, t4        = -1, 0, -1, 0
             time_interval         = -1
             dist_interval         = -1
@@ -701,7 +701,7 @@ def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta,
             if flight_type in ("VF", "VC"):
                alturavoo = ponto['height']
                angulo = ponto['bowangle']
-            elif flight_type in ("HS", "HM", "H_RC2", "L"):
+            elif flight_type in ("HS", "HM", "H_Dji_Fly", "L"):
                angulo = ponto['bowangle']
 
             data = {

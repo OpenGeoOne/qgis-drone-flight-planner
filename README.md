@@ -60,8 +60,8 @@ These tools generate **horizontal (nadir) missions** and export a **Litchi-compa
 - **2. Following terrain – Manual**  
   Same goal, but you manually provide key distances (side/front spacing) and flight attributes.
 
-- **3. Following terrain – RC2 Controller**  
-  Mission preparation designed for workflows using an RC2-style controller logic.
+- **3. Following terrain – Dji_Fly**  
+  Mission preparation designed for workflows using an Dji_Fly.
 
 - **4. Following terrain – Line**  
   Create a **linear corridor mission** from a single **axis line**, generating **2–5 parallel routes** (optionally including the axis) and automatically placing photo waypoints along each route.  
