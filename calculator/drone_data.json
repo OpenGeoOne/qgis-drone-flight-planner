@@ -62,6 +62,15 @@
         "min_angle_cam": -90,
         "max_angle_cam": 60
     },
+    "Lito X1": {
+        "sensor_width": 14.1,
+        "sensor_height": 10.6,
+        "focal_length": 6.72,
+        "image_width": 8064,
+        "image_height": 6048,
+        "min_angle_cam": -90,
+        "max_angle_cam": 60
+    },
     "Dji Flip": {
         "sensor_width": 14.1,
         "sensor_height": 10.6,
