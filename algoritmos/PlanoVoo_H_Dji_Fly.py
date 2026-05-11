@@ -206,7 +206,7 @@ class PlanoVoo_H_Dji_Fly(QgsProcessingAlgorithm):
         return 'Flight_Plan_H_Dji_Fly'
 
     def displayName(self):
-        return self.tr('3. Following terrain - Dji_Fly')
+        return self.tr('3. Following terrain - Dji Fly')
 
     def group(self):
         return 'Horizontal Flight'

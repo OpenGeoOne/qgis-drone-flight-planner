@@ -278,17 +278,30 @@ class PlanoVoo_VF(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Vertical.png'))
 
-    texto = """This tool is designed for creating vertical flight plans tailored for mapping building facades, ideal for architectural projects and building inspections.
-It enables the planning of a precise vertical trajectory with appropriate overlap and stop times for the drone, following terrain elevations (optionally), ensuring high-quality photographs and detailed mapping.</span></p>
-<p class="MsoNormal"><b>Configuration Details:</b></p>
-<ul style="margin-top: 0cm;" type="disc">
-  <li><b><span>Estimated Facade Height:</span></b><span> Specifies the highest point of the facade to be mapped.</span></li>
-  <li><b><span>Flight Base Line:</span></b><span> The path along which the drone will fly in front of the facade.</span></li>
+    texto = """This tool is designed to create vertical facade flight plans for detailed inspection and 3D mapping of buildings, walls, dams, industrial structures, towers, bridges, monuments, and other vertical surfaces.
+It generates an optimized vertical flight trajectory parallel to a reference facade line, distributing waypoints by height levels and photo spacing intervals. The tool can optionally generate missions using Above Ground mode to follow terrain elevations.
+<p><b>Input parameters:</b></p>
+<ul>
+  <li><b>Position of the Line on the Facade:</b> line layer representing the reference path along the facade.</li>
+  <li><b>Distance from the Facade Flight Line:</b> horizontal distance between the drone trajectory and the facade surface.</li>
+  <li><b>Above Ground (Follow Terrain):</b> enables terrain-following mode for compatible flight applications.</li>
+  <li><b>Reverse Flight Start:</b> reverses the vertical flight order, allowing the mission to start from the top level instead of the bottom.</li>
+  <li><b>Facade Height:</b> defines the maximum height of the structure to be mapped or inspected.</li>
+  <li><b>Start Height:</b> defines the initial flight height above the base level.</li>
+  <li><b>Spacing between Flight Lines:</b> vertical spacing between facade flight levels.</li>
+  <li><b>Spacing between Photos:</b> horizontal spacing between consecutive photo capture positions along the facade.</li>
+  <li><b>Flight Speed:</b> defines the drone speed in meters per second.</li>
+  <li><b>Wait Time for Photo:</b> defines the pause time at each waypoint before continuing the mission.</li>
+  <li><b>Gimbal Angle:</b> defines the camera inclination angle during image acquisition.</li>
+  <li><b>Open KML on Google Earth:</b> automatically opens the generated KML file after processing.</li>
+  <li><b>Output CSV File (Litchi):</b> defines the output CSV file compatible with the Litchi app.</li>
 </ul>
-<p><span>The outputs are <b>CSV</b> file compatible with the <b>Litchi app</b>. and 2 Layers - <b>Flight Line</b> and <b>Photos Points</b>.
-<p>It can also be used with other flight applications, utilizing the 2 genereted Layers for flight lines and waypoints.</p>
-<p><b>
-"""
+
+<p><b>Outputs:</b></p>
+<ul>
+  <li><b>CSV file</b> compatible with the <b>Litchi app</b></li>
+  <li><b>KML file</b> for visualization in Google Earth</li>
+</ul>"""
 
     figura = 'images/Facade.jpg'
 
