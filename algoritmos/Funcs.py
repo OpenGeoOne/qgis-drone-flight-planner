@@ -20,7 +20,7 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import *
 import os
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 import numpy as np
 import math
 import csv
@@ -514,7 +514,7 @@ def criar_layer_path(LISTA_PONTOS, arquivo_csv):
     nome_path = 'path - ' + os.path.splitext(os.path.basename(arquivo_csv))[0]
     layer_path = QgsVectorLayer('LineString?crs=EPSG:4326', nome_path, 'memory')
     prov_path = layer_path.dataProvider()
-    prov_path.addAttributes([QgsField('id', QVariant.Int)])
+    prov_path.addAttributes([QgsField('id', QMetaType.Type.Int)])
     layer_path.updateFields()
 
     segmentos = []
