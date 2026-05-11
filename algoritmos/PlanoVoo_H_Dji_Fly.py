@@ -226,9 +226,26 @@ class PlanoVoo_H_Dji_Fly(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Horizontal.png'))
 
-    texto = """This tool allows for horizontal flight planning for drone photogrammetry, following terrain elevation based on the specified flight altitude and the lateral spacing between flight lines.</b>
-<p>It generates a <b>CSV</b> file compatible with the <b>Litchi app</b> and two layers: <b>Flight Line</b> and <b>Photos Points</b>.</p>
-<p>The CSV file can then be used with <b>Litchi Utilities</b> to generate a <b>KMZ</b> file for use in the <b>DJI Fly</b> app — extremely useful for drones equipped with the <b>Dji_Fly</b>, such as the <b>Mini 4 e 5 Pro, Lito X1, Air 3, Air 3S</b>, and <b>Mavic 3</b>.</p>
+    texto = """<p>
+This tool enables <b>horizontal flight planning</b> for drone photogrammetry missions, automatically following the terrain elevation according to the defined flight altitude and the lateral spacing between flight lines.
+</p>
+
+<p>
+The process generates:
+<ul>
+    <li>A <b>CSV</b> file fully compatible with the <b>Litchi app</b>;</li>
+    <li>A <b>Flight Line</b> layer representing the flight paths;</li>
+    <li>A <b>Photo Points</b> layer showing the image capture locations.</li>
+</ul>
+</p>
+
+<p>
+The generated CSV file can be imported into <b>Litchi Hub</b> to create a <b>KMZ</b> mission file compatible with the <b>DJI Fly</b> app.
+</p>
+
+<p>
+This workflow is especially useful for drones that support waypoint missions through <b>DJI Fly</b>, including models such as the <b>Mini 4 Pro</b>, <b>Mini 5 Pro</b>, <b>Lito X1</b>, <b>Air 3</b>, <b>Air 3S</b>, and <b>Mavic 3</b>.
+</p>
 """
 
     figura = 'images/Terrain_Follow.jpg'
