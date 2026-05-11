@@ -39,7 +39,7 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
         pontoInicialVC, hObjVC, altMinVC, anguloFotoVC, dVertVC, velocVC, tStayVC, gimbalVC, csvVC = loadParametros("VC")
 
         self.addParameter(QgsProcessingParameterFeatureSource('circuloRef','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
-        self.addParameter(QgsProcessingParameterNumber('ponto_inicial','Start Point (0 a 359 degrees)',
+        self.addParameter(QgsProcessingParameterNumber('ponto_inicial','Start Azimuth (0 a 359 degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=359,defaultValue=pontoInicialVC))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
@@ -49,7 +49,7 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=altMinVC))
         self.addParameter(QgsProcessingParameterNumber('deltaVertical','Vertical Spacing (m)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dVertVC))
-        self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle in degrees between Photos (360.0 / numPartes) (1 a 90 degrees) (Ex: 360/45 = 8 photos per circle)',
+        self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle between Photos (1 to 90 degrees)',
                                                        type=QgsProcessingParameterNumber.Integer, minValue=1, maxValue=90, defaultValue=anguloFotoVC))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
                                                        type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))
@@ -231,17 +231,32 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/Vertical.png'))
 
-    texto = """This tool is designed to plan vertical and circular flights, ideal for 3D inspection and mapping projects around towers and similar objects.<br>
-It enables the creation of an optimized flight path to capture detailed images of the object's surroundings. Following terrain elevations (optionally).
-<p><b>Required configurations:</b></p>
+    texto = """This tool is designed to plan vertical circular flights, ideal for 3D inspection and mapping around towers, monuments, poles, buildings, silos, tanks, and other vertical structures.
+It creates a circular flight path around a reference base circle, distributing waypoints by height levels and angular intervals, generating an optimized mission for image capture around the object. The tool can optionally generate the flight using Above Ground mode to follow terrain elevations.
+
+<p><b>Input parameters:</b></p>
 <ul>
-  <li><b>Estimated object height:</b><span> Defines the highest point of the structure to be inspected.<o:p></o:p></span></li>
-  <li class="MsoNormal" style=""><b><span>Vertical spacing:</span></b><span> Determines the distance between capture levels along the object's height.<o:p></o:p></span></li>
-  <li class="MsoNormal" style=""><b><span>Number of photos per base circle (segments):</span></b><span> Specifies the number of photos to be captured at each circular level.<o:p></o:p></span></li>
+  <li><b>Flight Base Circle:</b> polygon layer containing one circular feature that defines the flight radius and center of the object.</li>
+  <li><b>Start Azimuth:</b> defines the azimuth, in degrees, where the circular flight starts.</li>
+  <li><b>Above Ground (Follow Terrain):</b> enables terrain-following mode for compatible flight applications.</li>
+  <li><b>Reverse Flight Start:</b> reverses the vertical flight sequence, allowing the mission to start from the top level instead of the bottom.</li>
+  <li><b>Object Height:</b> defines the maximum height of the structure to be mapped or inspected.</li>
+  <li><b>Start Height:</b> defines the initial flight height above the base level.</li>
+  <li><b>Vertical Spacing:</b> determines the vertical distance between each circular flight level.</li>
+  <li><b>Angle between Photos:</b> defines the angular interval between consecutive photos around each circular level. Smaller angles generate more photos per circle.</li>
+  <li><b>Flight Speed:</b> sets the drone flight speed in meters per second.</li>
+  <li><b>Time to Wait for Photo:</b> defines the waiting time at each waypoint before continuing the mission.</li>
+  <li><b>Gimbal Angle:</b> defines the camera gimbal angle during image acquisition.</li>
+  <li><b>Open KML on Google Earth:</b> automatically opens the generated KML file after processing.</li>
+  <li><b>Output CSV File (Litchi):</b> defines the output CSV file compatible with the Litchi app.</li>
 </ul>
-<p><span>The outputs are <b>CSV</b> file compatible with the <b>Litchi app</b>. and 2 Layers - <b>Flight Line</b> and <b>Photos Points</b>.
-<p>It can also be used with other flight applications, utilizing the 2 genereted Layers for flight lines and waypoints.</p>
-            """
+
+<p><b>Outputs:</b></p>
+<ul>
+  <li><b>CSV file</b> compatible with the <b>Litchi app</b>;</li>
+  <li><b>KML file</b> for visualization in Google Earth;</li>
+</ul>
+"""
 
     figura = 'images/Circular.jpg'
 
