@@ -20,7 +20,7 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import QCoreApplication, QVariant
+from qgis.PyQt.QtCore import QCoreApplication, QMetaType
 from ..images.Imgs import *
 import csv
 import os
@@ -124,8 +124,8 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             provider = temp_layer.dataProvider()
             new_fields = QgsFields()
             for field in fields:
-                new_fields.append(QgsField(field, QVariant.String))
-            new_fields.append(QgsField('original_index', QVariant.Int))
+                new_fields.append(QgsField(field, QMetaType.Type.QString))
+            new_fields.append(QgsField('original_index', QMetaType.Type.Int))
             provider.addAttributes(new_fields)
             temp_layer.updateFields()
 
