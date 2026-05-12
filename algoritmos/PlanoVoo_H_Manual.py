@@ -193,7 +193,7 @@ It generates <b>CSV</b> file compatible with the <b>Litchi app</b> and 2 Layers 
 
     def shortHelpString(self):
         corpo = '''<div align="center">
-                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +'''">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +f'''">
                       </div>
                       <div align="right">
                       <p><b>Learn more:</b><o:p></o:p></p>
