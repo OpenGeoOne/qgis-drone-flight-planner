@@ -22,7 +22,6 @@ from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
 import processing
-from ..images.Imgs import *
 import csv
 import os
 import math
@@ -232,7 +231,7 @@ class CSV_Merge(QgsProcessingAlgorithm):
         """
 
         corpo = '''<div align="center">
-                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +'''">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura2) +f'''">
                       </div>
                       <div align="right">
                        <p><b>Learn more:</b></p>
@@ -243,7 +242,9 @@ class CSV_Merge(QgsProcessingAlgorithm):
                       <p align="right">
                       <b>Autores: Prof Cazaroli, Leandro França and Ilton Freitas</b>
                       </p>
-                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/"><img title="GeoOne" src="data:image/png;base64,'''+ GeoOne +'''"></a>
+                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
+                      <img title="GeoOne" width="280"  src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png')}">
+                      </a>
 					  <p><i>"Automated, easy and straight to the point mapping is at GeoOne!"</i></p>
                       </div>
                     </div>'''
