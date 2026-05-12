@@ -259,7 +259,7 @@ The result is a <b>Litchi-compatible CSV</b> and optional flight line and waypoi
 
     def shortHelpString(self):
         corpo = '''<div align="center">
-                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +'''">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +f'''">
                       </div>
                       <div align="right">
                       <p><b>Learn more:</b><o:p></o:p></p>
