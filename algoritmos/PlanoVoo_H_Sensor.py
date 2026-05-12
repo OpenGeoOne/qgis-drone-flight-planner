@@ -250,7 +250,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
             <p><b>Learn more:</b></p>
             <ul>
                 <li><a href="https://geoone.com.br/pvplanodevoo">Sign up for GeoFlight Planner course</a></li>
-                <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=6010">Click here to access the class with all the details about this tool!</a></li>
+                <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=6312">Click here to access the class with all the details about this tool!</a></li>
             </ul>
             <p><b>Autores: Prof Cazaroli & Leandro França</b></p>
             <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
