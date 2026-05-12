@@ -19,9 +19,10 @@ __copyright__ = '(C) 2024 by Prof Cazaroli e Leandro França'
 __revision__ = '$Format:%H$'
 
 from qgis.core import *
-import os
-from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtCore import QMetaType, QUrl
 import numpy as np
+import os
 import math
 import csv
 
@@ -499,6 +500,7 @@ def csv_como_layer(csv_path, layer_name=None, add_to_project=True):
         f"&detectTypes=yes"
         f"&xField=longitude"
         f"&yField=latitude"
+        f"&zField=altitude(m)"
         f"&geomType=point"
         f"&crs=EPSG:4326"
     )
@@ -622,10 +624,20 @@ def salvar_outputs(LISTA_PONTOS, arquivo_csv, flight_type, velocidade, tempo,
 def post_process_comum(context, feedback, layer_path=None, csv_path=None,
                         kml_path=None, abrir_kml=False):
     """postProcessAlgorithm comum a todos os voos horizontais."""
-    if layer_path:
-        QgsProject.instance().addMapLayer(layer_path)
-        feedback.pushInfo("✅ Flight path layer added to QGIS.")
 
+    # ================= Carregar KML no QGIS =================
+    if kml_path and os.path.exists(kml_path):
+        layer_kml = QgsVectorLayer(kml_path, 'path - ' + os.path.splitext(os.path.basename(kml_path))[0], "ogr")
+        if layer_kml.isValid():
+            QgsProject.instance().addMapLayer(layer_kml)
+            feedback.pushInfo("✅ KML layer added to QGIS.")
+        else:
+            feedback.reportError("⚠️ KML file was created, but could not be loaded directly in QGIS.")
+    # if layer_path:
+    #     QgsProject.instance().addMapLayer(layer_path) 
+    #     feedback.pushInfo("✅ Flight path layer added to QGIS.")
+
+    # ================= Carregar CSV no QGIS =================
     if csv_path:
         layer_pontos = csv_como_layer(csv_path, layer_name=None)
         if layer_pontos is None or not layer_pontos.isValid():
@@ -639,14 +651,14 @@ def post_process_comum(context, feedback, layer_path=None, csv_path=None,
         except:
             feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
 
+    # ================= Abrir KML no Google Earth =================
     if abrir_kml and kml_path and os.path.exists(kml_path):
-        from qgis.PyQt.QtGui import QDesktopServices
-        from qgis.PyQt.QtCore import QUrl
         ok = QDesktopServices.openUrl(QUrl.fromLocalFile(kml_path))
         if ok:
             feedback.pushInfo("✅ KML opened with the default application.")
         else:
             feedback.reportError("⚠️ Could not open the KML automatically.")
+
 
 def _gerar_CSV(flight_type, pontos_fotos, arquivo_csv, velocidade, tempo, delta, angulo, H, gimbalAng, terrain=None):
    # Criar o arquivo CSV do Litchi
