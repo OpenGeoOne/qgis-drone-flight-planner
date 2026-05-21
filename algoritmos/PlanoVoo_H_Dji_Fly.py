@@ -262,9 +262,7 @@ This workflow is especially useful for drones that support waypoint missions thr
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
                       </p>
-                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
-                      <img title="GeoOne" width="280"  src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png')}">
-                      </a>
+                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/"><img title="GeoOne" width="280"  src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png') +'''"></a>
 					  <p><i>"Automated, easy and straight to the point mapping is at GeoOne!"</i></p>
                       </div>
                     </div>'''
