@@ -306,7 +306,7 @@ It generates an optimized vertical flight trajectory parallel to a reference fac
 
     def shortHelpString(self):
         corpo = '''<div align="center">
-                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +f'''">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), self.figura) +'''">
                       </div>
                       <div align="right">
                       <p><b>Learn more:</b><o:p></o:p></p>
@@ -317,9 +317,7 @@ It generates an optimized vertical flight trajectory parallel to a reference fac
                       <p align="right">
                       <b>Autores: Prof Cazaroli & Leandro França</b>
                       </p>
-                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
-                      <img title="GeoOne" width="280"  src="{os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png')}">
-                      </a>
+                      <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/"><img title="GeoOne" width="280"  src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png') +'''"></a>
 					  <p><i>"Automated, easy and straight to the point mapping is at GeoOne!"</i></p>
                       </div>
                     </div>'''
