@@ -21,7 +21,6 @@ __revision__ = '$Format:%H$'
 from qgis.core import *
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication
-from ..images.Imgs import *
 import os
 
 from .Funcs import (
@@ -253,9 +252,7 @@ class PlanoVoo_H_Sensor(QgsProcessingAlgorithm):
                 <li><a href="https://portal.geoone.com.br/m/lessons/planodevoo?classId=6312">Click here to access the class with all the details about this tool!</a></li>
             </ul>
             <p><b>Autores: Prof Cazaroli & Leandro França</b></p>
-            <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/">
-                <img title="GeoOne" src="data:image/png;base64,{GeoOne}">
-            </a>
+            <a target="_blank" rel="noopener noreferrer" href="https://geoone.com.br/"><img title="GeoOne" width="280"  src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)), 'images/GeoOne.png') +'''"></a>
             <p><i>"Automated, easy and straight to the point mapping is at GeoOne!"</i></p>
         </div>
         '''
