@@ -355,7 +355,10 @@ def linhas_voo_poligono(linha_ref_geom, poligono_geom, pol_pts, p1, deltaLat):
 
     # Ajustar sentido pela linha de referência
     # Se o produto escalar for negativo, inverter o sentido
-    pts_ref = linha_ref_geom.asPolyline()
+    if linha_ref_geom.isMultipart():
+        pts_ref = linha_ref_geom.asMultiPolyline()
+    else:
+        pts_ref = linha_ref_geom.asPolyline()
     if len(pts_ref) >= 2:
         ref_dx = pts_ref[-1].x() - pts_ref[0].x()
         ref_dy = pts_ref[-1].y() - pts_ref[0].y()
