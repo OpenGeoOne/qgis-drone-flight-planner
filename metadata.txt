@@ -3,7 +3,7 @@ name=GeoFlight Planner
 qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
-version=4.0.0
+version=4.0.1
 author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
 email=suporteo@geoone.com.br
 
@@ -18,7 +18,6 @@ hasProcessingProvider=yes
 experimental=False
 deprecated=False
 server=False
-supportsQt6=True
 
 tags=drones, dji, litchi, fly, path, csv, kmz, kml, brazil, plano de voo, GeoOne, gsd, drone flight, RC2 Controller
 homepage=https://github.com/OpenGeoOne/qgis-drone-flight-planner/wiki
@@ -26,6 +25,7 @@ category=Drone
 icon=images/GeoFlightPlanner.png
 
 # changelog=
+    4.0.1 - Security problem solved and files added to gitignore
     4.0.0 - Improvements to the algorithm for the plugin to work in QGIS 4.0
     3.0.7 - Bug fix in the Vertical Flight Facade tool, along with enhancements such as opening in Google Earth and loading layers with LFTools styles.
     3.0.6 - Updated for compatibility with QGIS 4.0
