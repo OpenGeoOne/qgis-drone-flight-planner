@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
 version=4.0.1
 author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
-email=suporteo@geoone.com.br
+email=suporte@geoone.com.br
 
 about=A QGIS plugin for precise drone flight planning, designed for photogrammetry, 3D inspections, and building facade mapping. It includes tools for terrain-following flights, circular paths around structures, and vertical facade mapping, generating CSV files compatible with Litchi or other flight apps and 2 QGIS Layers: Flight Line and Photos Points.
 
