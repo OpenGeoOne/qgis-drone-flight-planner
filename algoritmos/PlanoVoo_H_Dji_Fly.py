@@ -39,15 +39,15 @@ class PlanoVoo_H_Dji_Fly(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         hVooDji_Fly, abGroundDji_Fly, dlDji_Fly, gimbalDji_Fly, csvDji_Fly = loadParametros("H_Manual_Dji_Fly")
 
-        self.addParameter(QgsProcessingParameterFeatureSource('terreno','Area', types=[QgsProcessing.TypeVectorPolygon]))
-        self.addParameter(QgsProcessingParameterFeatureSource('primeira_linha','First line - direction flight', types=[QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterFeatureSource('terreno','Area', types=[QgsProcessing.SourceType.TypeVectorPolygon]))
+        self.addParameter(QgsProcessingParameterFeatureSource('primeira_linha','First line - direction flight', types=[QgsProcessing.SourceType.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooDji_Fly))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=2,defaultValue=hVooDji_Fly))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=abGroundDji_Fly))
         self.addParameter(QgsProcessingParameterNumber('dl','Lateral Spacing Between Flight Lines (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dlDji_Fly))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,defaultValue=dlDji_Fly))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalDji_Fly))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=-90, maxValue=70, defaultValue=gimbalDji_Fly))
         self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvDji_Fly))
 

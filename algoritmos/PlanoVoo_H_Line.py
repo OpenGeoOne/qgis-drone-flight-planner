@@ -40,25 +40,25 @@ class PlanoVoo_H_Line(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         hVooL, abGroundL, dlL, nLinL, dfL, velocL, tStayL, gimbalL, csvL = loadParametros("H_Line")
 
-        self.addParameter(QgsProcessingParameterFeatureSource('linhaRef','Axis Line', types=[QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterFeatureSource('linhaRef','Axis Line', types=[QgsProcessing.SourceType.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber('altura','Flight Height (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hVooL))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=2,defaultValue=hVooL))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)',defaultValue=abGroundL))
 
         frontal_opts = [self.tr('2 Lines'), self.tr('3 Lines (Axis included)'), self.tr('4 Lines'), self.tr('5 Lines (Axis include)')]
         self.addParameter(QgsProcessingParameterEnum('nLinhas', self.tr('Number of Flight Routes (from 1 to 5)'), options = frontal_opts, defaultValue= nLinL))
 
         self.addParameter(QgsProcessingParameterNumber('bf','Lateral Buffer (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dlL))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,defaultValue=dlL))
         
         self.addParameter(QgsProcessingParameterNumber('df','Front Spacing Between Photos (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=1,defaultValue=dfL))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=1,defaultValue=dfL))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocL))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,maxValue=20,defaultValue=velocL))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayL))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=0,maxValue=10,defaultValue=tStayL))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalL))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=-90, maxValue=70, defaultValue=gimbalL))
         self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvL))
 

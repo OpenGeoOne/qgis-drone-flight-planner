@@ -34,14 +34,14 @@ class CSV_Merge(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterFile(
             'csv1', 
             'Enter the first CSV file', 
-            behavior=QgsProcessingParameterFile.File, 
+            behavior=QgsProcessingParameterFile.Behavior.File, 
             fileFilter='CSV Files (*.csv)', 
             defaultValue=csv1Merge
         ))
         self.addParameter(QgsProcessingParameterFile(
             'csv2', 
             'Enter the second CSV file', 
-            behavior=QgsProcessingParameterFile.File, 
+            behavior=QgsProcessingParameterFile.Behavior.File, 
             fileFilter='CSV Files (*.csv)', 
             defaultValue=csv2Merge
         ))
@@ -160,7 +160,10 @@ class CSV_Merge(QgsProcessingAlgorithm):
                             'height':    float(row['altitude(m)']),
                             'bowangle':  0
                         })
-                    except:
+                    except (KeyError, TypeError, ValueError) as e:
+                        feedback.pushWarning(
+                            f"Skipping invalid CSV row: {str(e)}"
+                        )
                         continue
             layer_path = criar_layer_path(LISTA_PONTOS, arquivo_csvS)
             layer_path.setName(f"path - {csv_name}")
@@ -180,7 +183,8 @@ class CSV_Merge(QgsProcessingAlgorithm):
                 try:
                     processing.run("lftools:magicstyles", {'LAYER': layer_pontos, 'STYLE_POINT': 1})
                 except:
-                    feedback.reportError("💡 Install or enable the LFTools plugin to view the drone's heading.")
+                    feedback.pushWarning("Could not apply LFTools drone style.")
+                    feedback.pushWarning("💡Install or enable the LFTools plugin to view the drone's heading.")
 
         feedback.pushInfo("")
         feedback.pushInfo("✅ CSV Merge executed successfully.")

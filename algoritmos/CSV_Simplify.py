@@ -33,7 +33,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
        
         self.addParameter(QgsProcessingParameterFile(
             'voo_em_csv', 'Generated CSV file',
-            behavior=QgsProcessingParameterFile.File,
+            behavior=QgsProcessingParameterFile.Behavior.File,
             fileFilter='CSV Files (*.csv)',
             defaultValue=csvInSimplified
         ))
@@ -47,7 +47,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         ))
         self.addParameter(QgsProcessingParameterNumber(
             'tolerancia', 'Tolerance',
-            type=QgsProcessingParameterNumber.Double,
+            type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=toleranceSimplified
         ))
         self.addParameter(QgsProcessingParameterFileDestination(
@@ -154,11 +154,11 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             options = QgsVectorFileWriter.SaveVectorOptions()
             options.driverName = "GPKG"
             writer = QgsVectorFileWriter.writeAsVectorFormat(temp_layer, temp_file, options)
-            if writer[0] != QgsVectorFileWriter.NoError:
+            if writer[0] != QgsVectorFileWriter.WriterError.NoError:
                 raise QgsProcessingException(f"Error saving temporary file: {writer}")
 
             outputs['CriarPontosAPartirDeCsv'] = {'OUTPUT': temp_file}
-            feedback.pushInfo("\u2713 Points created successfully")
+            feedback.pushInfo("Points created successfully.")
 
             if parameters['adicionar_pontos_csv']:
                 pontos_csv_layer = QgsVectorLayer(temp_file, 'pontos_csv', 'ogr')
@@ -169,9 +169,10 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     try:
                         import processing
                         processing.run("lftools:magicstyles", {'LAYER': pontos_csv_layer, 'STYLE_POINT': 1})
-                        feedback.pushInfo("\u2713 CSV point layer added to project")
+                        feedback.pushInfo("CSV point layer added to project.")
                     except:
-                        feedback.reportError("\U0001f4a1 Install or enable the LFTools plugin to view the drone's heading.")
+                        feedback.pushWarning("Could not apply LFTools drone style.")
+                        feedback.pushWarning("💡Install or enable the LFTools plugin to view the drone's heading.")
 
         except Exception as e:
             feedback.reportError(f"Error creating points: {str(e)}")
@@ -185,7 +186,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         # ETAPA 2: Campo de índice (já feito na etapa 1)
         feedback.pushInfo("STEP 2: Index field already added...")
         outputs['AdicionarIndice'] = {'OUTPUT': temp_file}
-        feedback.pushInfo("\u2713 Index field already exists")
+        feedback.pushInfo("Index field already exists")
         feedback.setCurrentStep(2)
         if feedback.isCanceled(): return {}
 
@@ -204,7 +205,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             }, context=context, feedback=feedback, is_child_algorithm=True)
 
             if os.path.exists(temp_file_amostrado):
-                feedback.pushInfo("\u2713 Raster values successfully sampled")
+                feedback.pushInfo("Raster values successfully sampled")
             else:
                 feedback.reportError("Failed to create temporary file with sampled values")
                 return {}
@@ -237,7 +238,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 'Z_VALUE': QgsProperty.fromExpression(f'"{sample_band_name}"'),
                 'OUTPUT': temp_file_z
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Z values processed successfully")
+            feedback.pushInfo("Z values processed successfully")
         except Exception as e:
             feedback.reportError(f"Error processing Z values: {str(e)}")
             for f in temp_files:
@@ -256,7 +257,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             outputs['ReprojetarCamada'] = processing.run('native:reprojectlayer', {
                 'INPUT': temp_file_z, 'TARGET_CRS': parameters['src_projetado'], 'OUTPUT': temp_file_reprojetada
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Layer successfully reprojected")
+            feedback.pushInfo("Layer successfully reprojected")
         except Exception as e:
             feedback.reportError(f"Error reprojecting layer: {str(e)}")
             for f in temp_files:
@@ -281,7 +282,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             if distancias:
                 distancia_minima = min(distancias)
                 raio_buffer = distancia_minima / 2
-                feedback.pushInfo(f"\u2713 Minimum distance: {distancia_minima:.2f} m  Buffer radius: {raio_buffer:.2f} m")
+                feedback.pushInfo(f"Minimum distance: {distancia_minima:.2f} m  Buffer radius: {raio_buffer:.2f} m")
             else:
                 raio_buffer = 5
                 feedback.pushInfo("\u26a0 Using default buffer radius")
@@ -301,7 +302,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             outputs['PontosParaLinhas'] = processing.run('native:pointstopath', {
                 'INPUT': temp_file_reprojetada, 'ORDER_EXPRESSION': '"original_index"', 'OUTPUT': temp_file_linha
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Points successfully converted to lines")
+            feedback.pushInfo("Points successfully converted to lines")
 
             if parameters['adicionar_linha_trajetoria']:
                 linha_layer = QgsVectorLayer(temp_file_linha, 'linha_trajetoria', 'ogr')
@@ -316,7 +317,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     line_symbol.appendSymbolLayer(marcador)
                     linha_layer.setRenderer(QgsSingleSymbolRenderer(line_symbol))
                     QgsProject.instance().addMapLayer(linha_layer)
-                    feedback.pushInfo("\u2713 Trajectory line layer added to project")
+                    feedback.pushInfo("Trajectory line layer added to project")
         except Exception as e:
             feedback.reportError(f"Error converting points to line: {str(e)}")
             for f in temp_files:
@@ -335,7 +336,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             outputs['Simplificar'] = processing.run('native:simplifygeometries', {
                 'INPUT': temp_file_linha, 'METHOD': 2, 'TOLERANCE': parameters['tolerancia'], 'OUTPUT': temp_file_simplificada
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Line successfully simplified")
+            feedback.pushInfo("Line successfully simplified")
         except Exception as e:
             feedback.reportError(f"Error simplifying line: {str(e)}")
             for f in temp_files:
@@ -354,7 +355,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
             outputs['ExtrairVertices'] = processing.run('native:extractvertices', {
                 'INPUT': temp_file_simplificada, 'OUTPUT': temp_file_vertices
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Vertices extracted successfully")
+            feedback.pushInfo("Vertices extracted successfully")
         except Exception as e:
             feedback.reportError(f"Error extracting vertices: {str(e)}")
             for f in temp_files:
@@ -375,7 +376,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 'INPUT': temp_file_vertices, 'JOIN_STYLE': 0, 'MITER_LIMIT': 2,
                 'SEGMENTS': 5, 'OUTPUT': temp_file_buffers
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Buffers created successfully")
+            feedback.pushInfo("Buffers created successfully")
         except Exception as e:
             feedback.reportError(f"Error creating buffers: {str(e)}")
             for f in temp_files:
@@ -398,7 +399,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                 'PREDICATE': [0],
                 'OUTPUT': temp_file_atributos_unidos
             }, context=context, feedback=feedback, is_child_algorithm=True)
-            feedback.pushInfo("\u2713 Attributes successfully merged")
+            feedback.pushInfo("Attributes successfully merged")
         except Exception as e:
             feedback.reportError(f"Error merging attributes: {str(e)}")
             for f in temp_files:
@@ -429,7 +430,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     indices_simplificados.add(int(index))
                 feature_count += 1
 
-            feedback.pushInfo(f"\u2713 Processed {feature_count} features, found {len(indices_simplificados)} simplified indices")
+            feedback.pushInfo(f"Processed {feature_count} features, found {len(indices_simplificados)} simplified indices")
 
         except Exception as e:
             feedback.reportError(f"Error extracting indexes: {str(e)}")
@@ -458,7 +459,7 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     if idx in indices_simplificados:
                         escritor.writerow(linha)
 
-            feedback.pushInfo(f"\u2713 Simplified CSV saved in: {csv_saida}")
+            feedback.pushInfo(f"Simplified CSV saved in: {csv_saida}")
             results['CSV_Simplificado'] = csv_saida
 
             # Adicionar camada de pontos simplificados APÓS CSV gerado
@@ -470,8 +471,9 @@ class CSV_Simplify(QgsProcessingAlgorithm):
                     try:
                         processing.run("lftools:magicstyles", {'LAYER': simp_layer, 'STYLE_POINT': 1})
                     except:
-                        pass
-                    feedback.pushInfo("\u2713 Simplified points layer added to project")
+                        feedback.pushWarning("Could not apply LFTools drone style.")
+                        feedback.pushWarning("💡Install or enable the LFTools plugin to view the drone's heading.")
+                    feedback.pushInfo("Simplified points layer added to project")
 
         except Exception as e:
             feedback.reportError(f"Error filtering CSV: {str(e)}")
@@ -482,8 +484,12 @@ class CSV_Simplify(QgsProcessingAlgorithm):
         # Limpar arquivos temporários
         for f in temp_files:
             try:
-                if os.path.exists(f): os.remove(f)
-            except: pass
+                if os.path.exists(f):
+                    os.remove(f)
+            except OSError as e:
+                feedback.pushWarning(
+                    f"Could not remove temporary file '{f}': {e}"
+                )
 
         feedback.pushInfo("=" * 50)
         feedback.pushInfo("PROCESSING COMPLETED SUCCESSFULLY!")

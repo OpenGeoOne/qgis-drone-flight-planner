@@ -37,25 +37,25 @@ class PlanoVoo_VC(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         pontoInicialVC, hObjVC, altMinVC, anguloFotoVC, dVertVC, velocVC, tStayVC, gimbalVC, csvVC = loadParametros("VC")
 
-        self.addParameter(QgsProcessingParameterFeatureSource('circuloRef','Flight Base Circle', types=[QgsProcessing.TypeVectorPolygon]))
+        self.addParameter(QgsProcessingParameterFeatureSource('circuloRef','Flight Base Circle', types=[QgsProcessing.SourceType.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterNumber('ponto_inicial','Start Azimuth (0 a 359 degrees)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=359,defaultValue=pontoInicialVC))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=0,maxValue=359,defaultValue=pontoInicialVC))
         self.addParameter(QgsProcessingParameterBoolean('aboveGround', 'Above Ground (Follow Terrain)', defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean('inverte','Reverse Flight Start',defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber('altura','Object Height (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=2,defaultValue=hObjVC))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=2,defaultValue=hObjVC))
         self.addParameter(QgsProcessingParameterNumber('alturaMin','Start Height (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=altMinVC))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,defaultValue=altMinVC))
         self.addParameter(QgsProcessingParameterNumber('deltaVertical','Vertical Spacing (m)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,defaultValue=dVertVC))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,defaultValue=dVertVC))
         self.addParameter(QgsProcessingParameterNumber('anguloFoto', 'Angle between Photos (1 to 90 degrees)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=1, maxValue=90, defaultValue=anguloFotoVC))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=1, maxValue=90, defaultValue=anguloFotoVC))
         self.addParameter(QgsProcessingParameterNumber('velocidade','Flight Speed (m/s)',
-                                                       type=QgsProcessingParameterNumber.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))
+                                                       type=QgsProcessingParameterNumber.Type.Double, minValue=0.5,maxValue=20,defaultValue=velocVC))
         self.addParameter(QgsProcessingParameterNumber('tempo','Time to Wait for Photo (seconds)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=0,maxValue=10,defaultValue=tStayVC))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=0,maxValue=10,defaultValue=tStayVC))
         self.addParameter(QgsProcessingParameterNumber('gimbalAng','Gimbal Angle (degrees)',
-                                                       type=QgsProcessingParameterNumber.Integer, minValue=-90, maxValue=70, defaultValue=gimbalVC))
+                                                       type=QgsProcessingParameterNumber.Type.Integer, minValue=-90, maxValue=70, defaultValue=gimbalVC))
         self.addParameter(QgsProcessingParameterBoolean('kml','Open KML on Google Earth',defaultValue=False))
         self.addParameter(QgsProcessingParameterFileDestination('saida_csv', 'Output CSV File (Litchi)', fileFilter='CSV files (*.csv)', defaultValue=csvVC))
 
