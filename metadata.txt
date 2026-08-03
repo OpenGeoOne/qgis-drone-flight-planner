@@ -4,7 +4,7 @@ qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 description=A versatile QGIS plugin for drone flight planning, ensuring optimized flight paths and high-quality data capture.
 version=4.0.2
-author=Prof Cazaroli, Dr. Leandro França, Prof. Ilton Freitas
+author=Prof Cazaroli, Leandro França, Prof. Ilton Freitas
 email=suporte@geoone.com.br
 
 about=A QGIS plugin for precise drone flight planning, designed for photogrammetry, 3D inspections, and building facade mapping. It includes tools for terrain-following flights, circular paths around structures, and vertical facade mapping, generating CSV files compatible with Litchi or other flight apps and 2 QGIS Layers: Flight Line and Photos Points.
@@ -24,7 +24,7 @@ homepage=https://github.com/OpenGeoOne/qgis-drone-flight-planner/wiki
 category=Drone
 icon=images/GeoFlightPlanner.png
 
-# changelog=
+changelog=
     4.0.2 - Contact email updated
     4.0.1 - Security problem solved and files added to gitignore
     4.0.0 - Improvements to the algorithm for the plugin to work in QGIS 4.0
@@ -37,11 +37,11 @@ icon=images/GeoFlightPlanner.png
     3.0.1 - Correction of maximum drone speed calculation formulas using PPK.
     3.0.0 - New course recorded, Horizontal Line Flight and CSV with more than one flight (Two Areas and Crossover Flight), drone velocity calculator added.
     2.1.3 - Improved validation for empty layers and enhanced distance rounding for more consistent results.
-    2.1.2 - compatibility with Qt5 and Qt6
-    2.1.1 - bug fix in menu
-    2.1.0 - new tool for simplifing waypoints / Save Custom drone parameters in GSD Calculator
-    2.0.0 - added GSD Calculator / Check if 2 Layers are saved and out of editing / Gimbal Angle
-    1.2.0 - added tool for creating flight planning to RC2_Controller
+    2.1.2 - Compatibility with Qt5 and Qt6
+    2.1.1 - Bug fix in menu
+    2.1.0 - New tool for simplifying waypoints / Save custom drone parameters in GSD Calculator
+    2.0.0 - Added GSD Calculator / Check if 2 layers are saved and out of editing / Gimbal Angle
+    1.2.0 - Added tool for creating flight planning for RC2 Controller
     1.1.1 - simplekml package removed and DEM bug fix
     1.1.0 - Manually entered side and front distance / Taken from OpenTopography / Continuous Flight Line / Frontal Distance Time and Meters / Above Ground Yes or No / CRS transform bug fix
     1.0.1 - Update Horizontal Flight Minimum Area
